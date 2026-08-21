@@ -86,7 +86,7 @@ The catalogue supports a broad set of relevant invasive fish and plants while pr
 
 ### Spatial unit
 
-Use a roughly 1 km map-cell grid across Gyeongbuk. Score each **species within each cell**, rather than combining all species before scoring. The area card aggregates the top-scoring species after the per-species computation.
+Use a roughly 1 km map-cell grid across Gyeongbuk. Score each **species within each cell**, rather than combining all species before scoring. Cells are an internal analytical unit, not the primary citizen-facing destination.
 
 ### Score
 
@@ -113,9 +113,17 @@ An event never increases a hotspot score: events are action opportunities, not b
 
 An emerging hotspot remains separately styled and worded as community-verified evidence. It never masquerades as an official observation. An organizer may review it and create a challenge area; the application does not automatically create an official event or pay bounty.
 
-### Area profile
+### Landform-based action zones
 
-Each named area card displays its label, why it earned the label, top three invasive species and scores, record counts, species identification cards, nearby waterbody context for fish, restrictions, active verified event, active platform challenge, and current leaderboard owner.
+The PWA translates scored cells into named, landform-based **action zones** whenever a reliable boundary exists. A zone can be a lake, a practical river segment, a forest/habitat polygon, or another named official ecological area.
+
+1. Intersect hotspot cells with normalized waterbody, forest/habitat, and other official-area geometries.
+2. Aggregate the intersecting cells' per-species evidence and scores into the named zone.
+3. Render the real landform boundary and name in the citizen-facing map and challenge UI.
+4. For a river, create a practical segment (such as a 2 km reach) rather than treating the entire river as one competition area.
+5. When there is no reliable named boundary, display the evidence as an **emerging hotspot zone** using a transparent 1 km cell/cluster and say why it exists.
+
+This preserves reproducible scoring while letting users act on meaningful destinations such as “Andong Lake” instead of opaque grid coordinates. Each named action-zone card displays its label, why it earned the label, top three invasive species and scores, record counts, species identification cards, nearby waterbody context for fish, restrictions, active verified event, active platform challenge, and current leaderboard owner.
 
 ## PWA Experience
 
@@ -135,7 +143,8 @@ The first run generates an anonymous profile token and a default display name th
 Use MapLibre GL only. It renders a neutral open basemap plus the project's own GeoJSON layers:
 
 - official fish and plant occurrence points
-- hotspot cell polygons
+- named lake, river-segment, forest/habitat, and other action-zone polygons derived from hotspot cells
+- fallback hotspot cell polygons only where no reliable named landform boundary exists
 - community-verified and emerging hotspot markers
 - waterbody features
 - verified events and Bassanggum challenge boundaries
