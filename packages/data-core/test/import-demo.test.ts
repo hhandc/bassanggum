@@ -11,6 +11,7 @@ const demoDirectory = fileURLToPath(new URL('../../../data/raw/demo/', import.me
 const workspaceRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const kdpaSourceDirectory = '/Users/hyeonhongchang/Downloads/2025_ver';
 const lakeSourceDirectory = '/Users/hyeonhongchang/Downloads/N3A_E0052114';
+const riverSourceDirectory = '/Users/hyeonhongchang/Downloads/N3L_E0020000';
 
 function withCopiedDemoSnapshots(test: (directory: string) => void): void {
   const directory = mkdtempSync(join(tmpdir(), 'bassanggum-demo-'));
@@ -40,6 +41,14 @@ function generateLakeSnapshot(sourceDirectory: string, outputDirectory: string):
     stdio: 'pipe',
   });
   return JSON.parse(readFileSync(join(outputDirectory, 'national-base-map-lakes-gyeongbuk-2024.geojson'), 'utf8')) as ReturnType<typeof rawFeatureSnapshot>;
+}
+
+function generateRiverSnapshot(sourceDirectory: string, outputDirectory: string): ReturnType<typeof rawFeatureSnapshot> {
+  execFileSync('python3', ['scripts/prepare-demo-snapshots.py', '--rivers-only', sourceDirectory, outputDirectory], {
+    cwd: workspaceRoot,
+    stdio: 'pipe',
+  });
+  return JSON.parse(readFileSync(join(outputDirectory, 'national-base-map-rivers-gyeongbuk-2024.geojson'), 'utf8')) as ReturnType<typeof rawFeatureSnapshot>;
 }
 
 function withCopiedKdpaSourceBundle(test: (sourceDirectory: string, outputDirectory: string) => void): void {
@@ -124,6 +133,44 @@ describe('demo snapshot import', () => {
       rmSync(directory, { recursive: true, force: true });
     }
   }, 60_000);
+
+  it('keeps only CP949-decoded named, metric-clipped Gyeongbuk river reaches with stable parent source IDs', () => {
+    const snapshot = rawFeatureSnapshot('national-base-map-rivers-gyeongbuk-2024.geojson');
+
+    expect(snapshot.features).not.toHaveLength(0);
+    expect(snapshot.features.every((feature) => feature.geometry.type === 'LineString')).toBe(true);
+    expect(snapshot.features.every((feature) => geometryPositions(feature.geometry.coordinates).every(isWithinGyeongbuk))).toBe(true);
+    expect(snapshot.features.every((feature) => typeof feature.properties.name === 'string' && feature.properties.name.trim() !== '')).toBe(true);
+    expect(snapshot.features.every((feature) =>
+      typeof feature.properties.sourceRecordId === 'string' &&
+      feature.properties.sourceRecordId === feature.properties.parentSourceRecordId &&
+      typeof feature.properties.reachId === 'string',
+    )).toBe(true);
+    expect(snapshot.source).toMatchObject({
+      datasetId: 'N3L_E0020000',
+      sourceFileChecksum: expect.stringMatching(/^sha256:/),
+    });
+    expect(snapshot.audit).toMatchObject({
+      sourceProjection: 'EPSG:5179',
+      sourceEncoding: 'CP949',
+      filter: expect.stringContaining('Gyeongbuk'),
+      maximumReachLengthMetres: 2_000,
+    });
+  });
+
+  it('regenerates the named river snapshot from the complete EPSG:5179 centerline bundle', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'bassanggum-rivers-output-'));
+    try {
+      const regenerated = generateRiverSnapshot(riverSourceDirectory, directory);
+      const committed = rawFeatureSnapshot('national-base-map-rivers-gyeongbuk-2024.geojson');
+
+      expect(regenerated.source.sourceFileChecksum).toBe(committed.source.sourceFileChecksum);
+      expect(regenerated.source.checksum).toBe(committed.source.checksum);
+      expect(regenerated.features).toEqual(committed.features);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  }, 120_000);
 
   it('keeps only KDPA KR-47 protected-area boundaries with complete source attribution', () => {
     const snapshot = rawFeatureSnapshot('kdpa-protected-areas-oecm-gyeongbuk-2025.geojson');
@@ -227,7 +274,7 @@ describe('demo snapshot import', () => {
     });
   });
 
-  it('imports the three attributed Gyeongbuk occurrence snapshots, named lakes, and KDPA screening boundaries into the public bundle contract', () => {
+  it('imports the three attributed Gyeongbuk occurrence snapshots, named lakes and river reaches, and KDPA screening boundaries into the public bundle contract', () => {
     const bundle = importDemoSnapshots(demoDirectory);
 
     expect(bundle.species).toEqual(
@@ -272,6 +319,13 @@ describe('demo snapshot import', () => {
         datasetId: 'N3A_E0052114',
         sourceRecordId: expect.any(String),
         snapshotChecksum: expect.stringMatching(/^sha256:/),
+      }),
+    ]));
+    expect(bundle.actionZones).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: expect.stringMatching(/^action-zone:river:N3L_E0020000:/),
+        kind: 'river_segment',
+        name: expect.stringMatching(/ — Reach \d+$/),
       }),
     ]));
     expect(bundle.restrictedAreas).not.toHaveLength(0);
@@ -425,7 +479,7 @@ describe('demo snapshot import', () => {
     });
   });
 
-  it('keeps KDPA restricted areas and named lake context out of hotspot scoring', () => {
+  it('keeps KDPA restricted areas and named lake and river context out of hotspot scoring', () => {
     const bundle = importDemoSnapshots(demoDirectory);
     const hotspotCells = calculateHotspotCells({
       now: '2026-08-22T00:00:00.000Z',
@@ -439,6 +493,7 @@ describe('demo snapshot import', () => {
     expect(bundle.restrictedAreas).not.toHaveLength(0);
     expect(bundle.waterbodies).not.toHaveLength(0);
     expect(bundle.actionZones.some((zone) => zone.kind === 'lake' && 'name' in zone)).toBe(true);
+    expect(bundle.actionZones.some((zone) => zone.kind === 'river_segment' && 'name' in zone)).toBe(true);
     const scoreTraces = (zones: typeof bundle.actionZones) => zones.flatMap((zone) =>
       zone.evidence.cells.map((cell) => [zone.speciesId, cell.h3Index, cell.score].join('\u0000')),
     ).sort();

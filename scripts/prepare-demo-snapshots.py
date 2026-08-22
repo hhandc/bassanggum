@@ -36,6 +36,10 @@ KDPA_SHX = KDPA_SHAPEFILE.with_suffix('.shx')
 LAKE_SNAPSHOT = 'national-base-map-lakes-gyeongbuk-2024.geojson'
 LAKE_DIRECTORY = DOWNLOADS / 'N3A_E0052114'
 LAKE_SHAPEFILE = LAKE_DIRECTORY / 'N3A_E0052114.shp'
+RIVER_SNAPSHOT = 'national-base-map-rivers-gyeongbuk-2024.geojson'
+RIVER_DIRECTORY = DOWNLOADS / 'N3L_E0020000'
+RIVER_SHAPEFILE = RIVER_DIRECTORY / 'N3L_E0020000.shp'
+MAX_RIVER_REACH_LENGTH_METRES = 2000.0
 # Conservative projected envelope around the committed Gyeongbuk boundary.
 # It is only an early-out; every published vertex still passes the WGS84 gate.
 GYEONGBUK_EPSG5179_ENVELOPE = (900000.0, 1650000.0, 1220000.0, 2000000.0)
@@ -208,6 +212,42 @@ def dbf_row_iterator(path: Path):
                 text = record[offset:offset + length].decode('cp949').strip()
                 row[name] = float(text) if field_type in {'F', 'N'} and text else (0.0 if field_type in {'F', 'N'} else text)
                 offset += length
+            yield row
+
+
+def river_dbf_row_iterator(path: Path):
+    """Read only river NAME bytes until a record is eligible for publication."""
+    with path.open('rb') as source_file:
+        header = source_file.read(32)
+        record_count = unpack('<I', header[4:8])[0]
+        header_length = unpack('<H', header[8:10])[0]
+        record_length = unpack('<H', header[10:12])[0]
+        fields: dict[str, tuple[int, int]] = {}
+        offset = 1
+        while True:
+            field = source_file.read(32)
+            if field[0] == 0x0D:
+                break
+            fields[field[:11].split(b'\0', 1)[0].decode('ascii')] = (offset, field[16])
+            offset += field[16]
+        source_file.seek(header_length)
+        for _ in range(record_count):
+            record = source_file.read(record_length)
+            if record[:1] == b'*':
+                yield None
+                continue
+            name_offset, name_length = fields['NAME']
+            name = record[name_offset:name_offset + name_length].decode('cp949').strip()
+            if not name:
+                yield {'NAME': ''}
+                continue
+            row: dict[str, str | float] = {'NAME': name}
+            for field_name in ('UFID', 'DIVI', 'TYPE', 'STAT', 'SCLS', 'FMTA'):
+                field_offset, field_length = fields[field_name]
+                row[field_name] = record[field_offset:field_offset + field_length].decode('cp949').strip()
+            rvnu_offset, rvnu_length = fields['RVNU']
+            rvnu_text = record[rvnu_offset:rvnu_offset + rvnu_length].decode('cp949').strip()
+            row['RVNU'] = int(float(rvnu_text)) if rvnu_text else 0
             yield row
 
 
@@ -391,6 +431,146 @@ def epsg5179_polygon_records(path: Path):
             yield grouped
 
 
+def point_in_gyeongbuk(point: list[float]) -> bool:
+    longitude, latitude = point
+    inside = False
+    for (start_longitude, start_latitude), (end_longitude, end_latitude) in zip(GYEONGBUK_BOUNDARY, GYEONGBUK_BOUNDARY[1:]):
+        if (start_latitude > latitude) != (end_latitude > latitude) and longitude < (end_longitude - start_longitude) * (latitude - start_latitude) / (end_latitude - start_latitude) + start_longitude:
+            inside = not inside
+    return inside
+
+
+def segment_intersection(start: list[float], end: list[float], boundary_start: tuple[float, float], boundary_end: tuple[float, float]) -> list[float] | None:
+    denominator = (end[0] - start[0]) * (boundary_end[1] - boundary_start[1]) - (end[1] - start[1]) * (boundary_end[0] - boundary_start[0])
+    if abs(denominator) <= 1e-12:
+        return None
+    offset_x = boundary_start[0] - start[0]
+    offset_y = boundary_start[1] - start[1]
+    segment_fraction = (offset_x * (boundary_end[1] - boundary_start[1]) - offset_y * (boundary_end[0] - boundary_start[0])) / denominator
+    boundary_fraction = (offset_x * (end[1] - start[1]) - offset_y * (end[0] - start[0])) / denominator
+    if not (0.0 <= segment_fraction <= 1.0 and 0.0 <= boundary_fraction <= 1.0):
+        return None
+    return [start[0] + (end[0] - start[0]) * segment_fraction, start[1] + (end[1] - start[1]) * segment_fraction]
+
+
+def clip_line_to_gyeongbuk(line: list[list[float]]) -> list[list[list[float]]]:
+    """Clip a WGS84 centerline to the committed boundary without naming it."""
+    clipped: list[list[list[float]]] = []
+    current: list[list[float]] = []
+    for start, end in zip(line, line[1:]):
+        cuts = [start, end]
+        for boundary_start, boundary_end in zip(GYEONGBUK_BOUNDARY, GYEONGBUK_BOUNDARY[1:]):
+            intersection = segment_intersection(start, end, boundary_start, boundary_end)
+            if intersection is not None:
+                cuts.append(intersection)
+        cuts.sort(key=lambda point: (point[0] - start[0]) ** 2 + (point[1] - start[1]) ** 2)
+        for segment_start, segment_end in zip(cuts, cuts[1:]):
+            midpoint = [(segment_start[0] + segment_end[0]) / 2, (segment_start[1] + segment_end[1]) / 2]
+            if not point_in_gyeongbuk(midpoint):
+                if len(current) > 1:
+                    clipped.append(current)
+                current = []
+                continue
+            # Boundary intersections can fall a few floating-point ulps outside
+            # the shared TypeScript containment predicate. Nudge only those
+            # endpoints toward an already-inside midpoint.
+            if not point_in_gyeongbuk(segment_start):
+                segment_start = [segment_start[0] + (midpoint[0] - segment_start[0]) * 1e-9, segment_start[1] + (midpoint[1] - segment_start[1]) * 1e-9]
+            if not point_in_gyeongbuk(segment_end):
+                segment_end = [segment_end[0] + (midpoint[0] - segment_end[0]) * 1e-9, segment_end[1] + (midpoint[1] - segment_end[1]) * 1e-9]
+            if not current:
+                current = [segment_start]
+            elif current[-1] != segment_start:
+                current.append(segment_start)
+            current.append(segment_end)
+    if len(current) > 1:
+        clipped.append(current)
+    return clipped
+
+
+def haversine_metres(start: list[float], end: list[float]) -> float:
+    longitude_delta = math.radians(end[0] - start[0])
+    latitude_delta = math.radians(end[1] - start[1])
+    start_latitude = math.radians(start[1])
+    end_latitude = math.radians(end[1])
+    a = math.sin(latitude_delta / 2) ** 2 + math.cos(start_latitude) * math.cos(end_latitude) * math.sin(longitude_delta / 2) ** 2
+    return 6371008.8 * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+def interpolate_geodesic(start: list[float], end: list[float], fraction: float) -> list[float]:
+    start_longitude, start_latitude = map(math.radians, start)
+    end_longitude, end_latitude = map(math.radians, end)
+    angle = 2 * math.asin(math.sqrt(math.sin((end_latitude - start_latitude) / 2) ** 2 + math.cos(start_latitude) * math.cos(end_latitude) * math.sin((end_longitude - start_longitude) / 2) ** 2))
+    if angle == 0:
+        return start
+    start_weight = math.sin((1 - fraction) * angle) / math.sin(angle)
+    end_weight = math.sin(fraction * angle) / math.sin(angle)
+    x = start_weight * math.cos(start_latitude) * math.cos(start_longitude) + end_weight * math.cos(end_latitude) * math.cos(end_longitude)
+    y = start_weight * math.cos(start_latitude) * math.sin(start_longitude) + end_weight * math.cos(end_latitude) * math.sin(end_longitude)
+    z = start_weight * math.sin(start_latitude) + end_weight * math.sin(end_latitude)
+    return [math.degrees(math.atan2(y, x)), math.degrees(math.atan2(z, math.sqrt(x * x + y * y)))]
+
+
+def split_line_into_reaches(line: list[list[float]]) -> list[list[list[float]]]:
+    reaches: list[list[list[float]]] = []
+    current = [line[0]]
+    capacity = MAX_RIVER_REACH_LENGTH_METRES
+    for segment_start, segment_end in zip(line, line[1:]):
+        start = segment_start
+        remaining = haversine_metres(start, segment_end)
+        while remaining > 1e-9:
+            if remaining <= capacity + 1e-9:
+                current.append(segment_end)
+                capacity -= remaining
+                if capacity <= 1e-9:
+                    reaches.append(current)
+                    current = [segment_end]
+                    capacity = MAX_RIVER_REACH_LENGTH_METRES
+                break
+            cut = interpolate_geodesic(start, segment_end, capacity / remaining)
+            current.append(cut)
+            reaches.append(current)
+            current = [cut]
+            start = cut
+            remaining = haversine_metres(start, segment_end)
+            capacity = MAX_RIVER_REACH_LENGTH_METRES
+    if len(current) > 1:
+        reaches.append(current)
+    return reaches
+
+
+def epsg5179_polyline_contents(path: Path):
+    """Stream raw PolyLine record content so unnamed rows avoid reprojection."""
+    with path.open('rb') as source_file:
+        header = source_file.read(100)
+        if unpack('<i', header[32:36])[0] != 3:
+            raise ValueError('National Base Map river source must be a PolyLine SHP file.')
+        while record_header := source_file.read(8):
+            content_length = unpack('>i', record_header[4:8])[0] * 2
+            yield source_file.read(content_length)
+
+
+def epsg5179_polyline_components(content: bytes) -> list[list[list[float]]]:
+    shape_type = unpack('<i', content[:4])[0]
+    if shape_type == 0:
+        return []
+    if shape_type != 3:
+        raise ValueError('National Base Map river source contains a non-PolyLine record.')
+    min_x, min_y, max_x, max_y = unpack('<4d', content[4:36])
+    boundary_min_x, boundary_min_y, boundary_max_x, boundary_max_y = GYEONGBUK_EPSG5179_ENVELOPE
+    if max_x < boundary_min_x or min_x > boundary_max_x or max_y < boundary_min_y or min_y > boundary_max_y:
+        return []
+    part_count, point_count = unpack('<2i', content[36:44])
+    starts = list(unpack(f'<{part_count}i', content[44:44 + part_count * 4]))
+    coordinate_offset = 44 + part_count * 4
+    points = [
+        list(unpack('<2d', content[coordinate_offset + index * 16:coordinate_offset + (index + 1) * 16]))
+        for index in range(point_count)
+    ]
+    starts.append(point_count)
+    return [[inverse_epsg5179((point[0], point[1])) for point in points[start:end]] for start, end in zip(starts, starts[1:])]
+
+
 def write_kdpa_snapshot(source_directory: Path = KDPA_DIRECTORY, output_directory: Path = OUTPUT_DIRECTORY) -> None:
     shapefile = source_directory / KDPA_SHAPEFILE.name
     dbf = shapefile.with_suffix('.dbf')
@@ -547,14 +727,119 @@ def write_lake_snapshot(source_directory: Path = LAKE_DIRECTORY, output_director
     )
 
 
+def write_river_snapshot(source_directory: Path = RIVER_DIRECTORY, output_directory: Path = OUTPUT_DIRECTORY) -> None:
+    """Create named, bounded National Base Map river reaches for action-zone context."""
+    shapefile = source_directory / RIVER_SHAPEFILE.name
+    dbf = shapefile.with_suffix('.dbf')
+    projection = shapefile.with_suffix('.prj')
+    index = shapefile.with_suffix('.shx')
+    spatial_index = shapefile.with_suffix('.sbn')
+    spatial_index_metadata = shapefile.with_suffix('.sbx')
+    metadata = shapefile.with_suffix('.xml')
+    projection_text = projection.read_text(encoding='ascii')
+    if 'Korea_2000_Korea_Unified_Coordinate_System' not in projection_text or 'Central_Meridian",127.5' not in projection_text:
+        raise ValueError('National Base Map river source projection must be EPSG:5179.')
+
+    features = []
+    source_records = 0
+    excluded_unnamed_records = 0
+    excluded_outside_gyeongbuk_records = 0
+    for row, content in zip_longest(river_dbf_row_iterator(dbf), epsg5179_polyline_contents(shapefile)):
+        if row is None and content is None:
+            continue
+        if row is None or content is None:
+            raise ValueError('National Base Map river SHP and DBF record counts differ.')
+        source_records += 1
+        name = str(row['NAME']).strip()
+        if not name:
+            excluded_unnamed_records += 1
+            continue
+        components = epsg5179_polyline_components(content)
+        if not components:
+            excluded_outside_gyeongbuk_records += 1
+            continue
+        source_record_id = str(row['UFID']).strip()
+        reaches = [reach for component in components for clipped in clip_line_to_gyeongbuk(component) for reach in split_line_into_reaches(clipped)]
+        if not reaches:
+            excluded_outside_gyeongbuk_records += 1
+            continue
+        for ordinal, reach in enumerate(reaches, 1):
+            reach_id = f'{source_record_id}:reach:{ordinal:02d}'
+            features.append({
+                'type': 'Feature',
+                'properties': {
+                    'sourceRecordId': source_record_id,
+                    'parentSourceRecordId': source_record_id,
+                    'reachId': reach_id,
+                    'name': name,
+                    'RVNU': row['RVNU'],
+                    'DIVI': str(row['DIVI']).strip(),
+                    'TYPE': str(row['TYPE']).strip(),
+                    'STAT': str(row['STAT']).strip(),
+                    'SCLS': str(row['SCLS']).strip(),
+                    'FMTA': str(row['FMTA']).strip(),
+                },
+                'geometry': {'type': 'LineString', 'coordinates': reach},
+            })
+
+    features.sort(key=lambda feature: (str(feature['properties']['name']), str(feature['properties']['sourceRecordId']), str(feature['properties']['reachId'])))
+    eligible_reach_records = len(features)
+    # The full Gyeongbuk clip contains tens of thousands of short centerline
+    # records.  The no-key demo keeps one reproducible representative reach
+    # per official CP949 NAME, rather than shipping a nationwide-scale layer.
+    # It is context for matching hotspots, not a complete navigable network.
+    representative_features = []
+    published_names: set[str] = set()
+    for feature in features:
+        name = str(feature['properties']['name'])
+        if name in published_names:
+            continue
+        published_names.add(name)
+        representative_features.append(feature)
+    features = sorted(representative_features, key=lambda feature: str(feature['properties']['reachId']))
+    source = {
+        'datasetId': 'N3L_E0020000',
+        'title': 'National Base Map named river centerlines (N3L_E0020000)',
+        'provider': 'National Geographic Information Institute (NGII)',
+        'sourceUrl': 'https://map.ngii.go.kr/ms/map/NlipMap.do',
+        'licence': 'Source licence terms were not supplied with the National Base Map shapefile.',
+        'attribution': 'National Geographic Information Institute (NGII), National Base Map N3L_E0020000.',
+        'snapshotFilename': RIVER_SNAPSHOT,
+        'sourceFileChecksum': component_checksum((shapefile, dbf, projection, index, spatial_index, spatial_index_metadata, metadata)),
+        'checksum': json_payload_checksum(features),
+    }
+    payload = {
+        'type': 'FeatureCollection',
+        'source': source,
+        'features': features,
+        'audit': {
+            'sourceRecords': source_records,
+            'eligibleReachRecords': eligible_reach_records,
+            'publishedRecords': len(features),
+            'excludedUnnamedRecords': excluded_unnamed_records,
+            'excludedOutsideGyeongbukRecords': excluded_outside_gyeongbuk_records,
+            'sourceProjection': 'EPSG:5179',
+            'sourceEncoding': 'CP949',
+            'maximumReachLengthMetres': MAX_RIVER_REACH_LENGTH_METRES,
+            'filter': 'National Base Map N3L_E0020000 PolyLine SHP; CP949 NAME only; EPSG:5179 transformed to WGS84; clipped to committed Gyeongbuk boundary; deterministic geodesic reaches no longer than 2,000 m; one lowest (sourceRecordId, reachId) representative reach per official NAME.',
+            'limitation': 'This bounded demo snapshot is representative river context, not a complete river network. River centerlines and official names never create or change biological hotspot scores and do not authorize removal.',
+        },
+    }
+    (output_directory / RIVER_SNAPSHOT).write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8'
+    )
+
+
 def main() -> None:
     if len(sys.argv) > 1:
-        if len(sys.argv) != 4 or sys.argv[1] not in {'--kdpa-only', '--lakes-only'}:
-            raise SystemExit('Usage: prepare-demo-snapshots.py [--kdpa-only|--lakes-only <source-directory> <output-directory>]')
+        if len(sys.argv) != 4 or sys.argv[1] not in {'--kdpa-only', '--lakes-only', '--rivers-only'}:
+            raise SystemExit('Usage: prepare-demo-snapshots.py [--kdpa-only|--lakes-only|--rivers-only <source-directory> <output-directory>]')
         if sys.argv[1] == '--kdpa-only':
             write_kdpa_snapshot(Path(sys.argv[2]), Path(sys.argv[3]))
-        else:
+        elif sys.argv[1] == '--lakes-only':
             write_lake_snapshot(Path(sys.argv[2]), Path(sys.argv[3]))
+        else:
+            write_river_snapshot(Path(sys.argv[2]), Path(sys.argv[3]))
         return
 
     workbook_path, csv_path, plant_csv_path = discover_inputs()
@@ -607,6 +892,7 @@ def main() -> None:
     )
     write_kdpa_snapshot()
     write_lake_snapshot()
+    write_river_snapshot()
     accepted_names = {'배스', '블루길'}
     rejected = [row for row in nie_rows if row.get('한글보통명') not in accepted_names]
     write_snapshot(

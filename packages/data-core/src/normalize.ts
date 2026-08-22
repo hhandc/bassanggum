@@ -11,6 +11,7 @@ import {
   ImportRunSchema,
   OfficialOccurrenceSchema,
   HabitatAreaSchema,
+  LandformLineGeometrySchema,
   PublicDataBundleSchema,
   RestrictedAreaSchema,
   WaterbodySchema,
@@ -246,6 +247,10 @@ function hasOnlyGyeongbukPositions(geometry: AreaGeometry): boolean {
   );
 }
 
+function hasOnlyGyeongbukLinePositions(geometry: { coordinates: Position[] }): boolean {
+  return geometry.coordinates.every((position) => isWithinGyeongbuk([position[0], position[1]]));
+}
+
 function validatedMetadata(source: DatasetSource, importRun: ImportRun): boolean {
   return DatasetSourceSchema.safeParse(source).success && ImportRunSchema.safeParse(importRun).success;
 }
@@ -403,6 +408,44 @@ export function normalizeWaterbodyFeature(
   return parsed.success ? parsed.data : null;
 }
 
+/**
+ * National Base Map river labels are accepted only from named N3L centerlines.
+ * The separately supplied N3A width layer has no naming authority.
+ */
+export function normalizeRiverLandformFeature(
+  feature: unknown,
+  source: DatasetSource,
+): SuppliedLandform | null {
+  if (!isRecord(feature) || !isRecord(feature.properties) || source.datasetId !== 'N3L_E0020000') {
+    return null;
+  }
+
+  const sourceRecordId = nonEmptyString(feature.properties.sourceRecordId);
+  const parentSourceRecordId = nonEmptyString(feature.properties.parentSourceRecordId);
+  const reachId = nonEmptyString(feature.properties.reachId);
+  const name = nonEmptyString(feature.properties.name);
+  const geometry = LandformLineGeometrySchema.safeParse(feature.geometry);
+  if (
+    sourceRecordId === null ||
+    parentSourceRecordId === null ||
+    sourceRecordId !== parentSourceRecordId ||
+    reachId === null ||
+    name === null ||
+    !geometry.success ||
+    geometry.data.type !== 'LineString' ||
+    !hasOnlyGyeongbukLinePositions(geometry.data)
+  ) {
+    return null;
+  }
+
+  return {
+    id: `river:${source.datasetId}:${sourceRecordId}:${reachId}`,
+    name,
+    kind: 'river_segment',
+    geometry: geometry.data,
+  };
+}
+
 function readSnapshot(path: string): { source: DatasetSource; records: unknown[] } {
   const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'));
   if (!isRecord(parsed) || !Array.isArray(parsed.records)) {
@@ -464,6 +507,7 @@ export function importDemoSnapshots(inputDirectory: string): PublicDataBundle {
   const alienPlants = readSnapshot(join(inputDirectory, 'nie-alien-plants-gyeongbuk-2015-2021.json'));
   const kdpaBoundaries = readHabitatSnapshot(join(inputDirectory, 'kdpa-protected-areas-oecm-gyeongbuk-2025.geojson'));
   const lakes = readHabitatSnapshot(join(inputDirectory, 'national-base-map-lakes-gyeongbuk-2024.geojson'));
+  const rivers = readHabitatSnapshot(join(inputDirectory, 'national-base-map-rivers-gyeongbuk-2024.geojson'));
   const catalogue = readCatalogSnapshot(join(inputDirectory, 'species-catalog.json'));
   const importRun: ImportRun = {
     id: 'gyeongbuk-no-key-import-v1',
@@ -503,6 +547,10 @@ export function importDemoSnapshots(inputDirectory: string): PublicDataBundle {
     kind: 'lake',
     geometry: waterbody.geometry,
   }));
+  const riverLandforms = rivers.features.flatMap((feature) => {
+    const river = normalizeRiverLandformFeature(feature, rivers.source);
+    return river === null ? [] : [river];
+  });
 
   return PublicDataBundleSchema.parse({
     species: cataloguedSpecies,
@@ -520,7 +568,7 @@ export function importDemoSnapshots(inputDirectory: string): PublicDataBundle {
         verifiedCommunitySignals: [],
         verifiedEvents: [],
       }),
-      lakeLandforms,
+      [...lakeLandforms, ...riverLandforms],
     ),
   });
 }
