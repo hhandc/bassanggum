@@ -6,11 +6,19 @@ import {
   type ActionZone,
   type ActionZoneEvidenceCell,
   type AreaGeometry,
+  type LandformLineGeometry,
   type SuppliedLandform,
 } from './schema.js';
 import type { HotspotCell, HotspotContribution } from './hotspots.js';
 
 type Position = [number, number];
+type RiverReachGeometry = { type: 'LineString'; coordinates: Position[] };
+type PreparedLandform = {
+  id: string;
+  name: string;
+  kind: 'lake' | 'river_segment' | 'forest_habitat';
+  geometry: AreaGeometry | RiverReachGeometry;
+};
 type ZoneDraft = {
   kind: ActionZone['kind'];
   name?: string;
@@ -25,7 +33,10 @@ type ZoneDraft = {
  * removal authority is inferred from occurrence data.
  */
 export function createActionZones(cells: readonly HotspotCell[], landforms: readonly SuppliedLandform[] = []): ActionZone[] {
-  const parsedLandforms = landforms.map((landform) => SuppliedLandformSchema.parse(landform)).sort((left, right) => left.id.localeCompare(right.id));
+  const parsedLandforms = landforms
+    .map((landform) => SuppliedLandformSchema.parse(landform))
+    .sort((left, right) => left.id.localeCompare(right.id));
+  const preparedLandforms = parsedLandforms.flatMap(prepareLandform);
   assertUniqueCells(cells);
 
   const drafts = [...cellsBySpecies(cells).entries()].flatMap(([speciesId, speciesCells]) => {
@@ -33,7 +44,7 @@ export function createActionZones(cells: readonly HotspotCell[], landforms: read
     const unassigned: HotspotCell[] = [];
 
     for (const cell of speciesCells) {
-      const landform = parsedLandforms.find((candidate) => landformIntersectsCell(candidate, cell.h3Index));
+      const landform = preparedLandforms.find((candidate) => landformIntersectsCell(candidate, cell.h3Index));
       if (landform === undefined) {
         unassigned.push(cell);
         continue;
@@ -44,7 +55,7 @@ export function createActionZones(cells: readonly HotspotCell[], landforms: read
     }
 
     const named = [...assigned.entries()].map(([landformId, matchingCells]) => {
-      const landform = parsedLandforms.find((candidate) => candidate.id === landformId);
+      const landform = preparedLandforms.find((candidate) => candidate.id === landformId);
       if (landform === undefined) {
         throw new Error(`Missing supplied landform ${landformId}.`);
       }
@@ -63,6 +74,71 @@ export function createActionZones(cells: readonly HotspotCell[], landforms: read
   return drafts
     .map(createZone)
     .sort((left, right) => left.speciesId.localeCompare(right.speciesId) || left.id.localeCompare(right.id));
+}
+
+function prepareLandform(landform: SuppliedLandform): PreparedLandform[] {
+  if (landform.kind !== 'river_segment') {
+    return [landform];
+  }
+
+  return splitRiverIntoReaches(landform.geometry).map((geometry, index) => {
+    const ordinal = index + 1;
+    const reachLabel = String(ordinal).padStart(2, '0');
+    return {
+      id: `${landform.id}:reach:${reachLabel}`,
+      name: `${landform.name} — Reach ${reachLabel}`,
+      kind: 'river_segment',
+      geometry,
+    };
+  });
+}
+
+/**
+ * Splits each supplied line component into consecutive <=2 km geodesic
+ * reaches. Distances use the mean Earth radius and interpolation follows the
+ * great-circle arc, avoiding latitude-dependent degree approximations.
+ */
+function splitRiverIntoReaches(geometry: LandformLineGeometry): RiverReachGeometry[] {
+  const components = geometry.type === 'LineString' ? [geometry.coordinates] : geometry.coordinates;
+  return components.flatMap((component) => splitLineIntoReaches(component.map(toPosition)));
+}
+
+function splitLineIntoReaches(line: readonly Position[]): RiverReachGeometry[] {
+  const reaches: RiverReachGeometry[] = [];
+  let current: Position[] = [line[0]!];
+  let capacityMetres = 2_000;
+
+  for (let index = 1; index < line.length; index += 1) {
+    let segmentStart = line[index - 1]!;
+    const segmentEnd = line[index]!;
+    let remainingMetres = geodesicDistanceMetres(segmentStart, segmentEnd);
+
+    while (remainingMetres > Number.EPSILON) {
+      if (remainingMetres <= capacityMetres + Number.EPSILON) {
+        current.push(segmentEnd);
+        capacityMetres -= remainingMetres;
+        if (capacityMetres <= Number.EPSILON) {
+          reaches.push({ type: 'LineString', coordinates: current });
+          current = [segmentEnd];
+          capacityMetres = 2_000;
+        }
+        break;
+      }
+
+      const cut = interpolateGreatCircle(segmentStart, segmentEnd, capacityMetres / remainingMetres);
+      current.push(cut);
+      reaches.push({ type: 'LineString', coordinates: current });
+      current = [cut];
+      segmentStart = cut;
+      remainingMetres = geodesicDistanceMetres(segmentStart, segmentEnd);
+      capacityMetres = 2_000;
+    }
+  }
+
+  if (current.length > 1) {
+    reaches.push({ type: 'LineString', coordinates: current });
+  }
+  return reaches;
 }
 
 function assertUniqueCells(cells: readonly HotspotCell[]): void {
@@ -172,8 +248,11 @@ function publicContributions(contributions: readonly HotspotContribution[]): Arr
     .sort((left, right) => left.id.localeCompare(right.id));
 }
 
-function landformIntersectsCell(landform: SuppliedLandform, h3Index: string): boolean {
-  return areaIntersectsPolygon(landform.geometry, cellBoundary(h3Index));
+function landformIntersectsCell(landform: PreparedLandform, h3Index: string): boolean {
+  const boundary = cellBoundary(h3Index);
+  return landform.geometry.type === 'LineString'
+    ? lineIntersectsPolygon(landform.geometry.coordinates, boundary)
+    : areaIntersectsPolygon(landform.geometry, boundary);
 }
 
 function cellBoundary(h3Index: string): Position[] {
@@ -188,6 +267,11 @@ function cellBoundary(h3Index: string): Position[] {
 function areaIntersectsPolygon(area: AreaGeometry, cellRing: readonly Position[]): boolean {
   const polygons = area.type === 'Polygon' ? [area.coordinates] : area.coordinates;
   return polygons.some((polygon) => polygonIntersectsPolygon(polygon, cellRing));
+}
+
+/** A line intersects a cell when an endpoint is inside it or a segment crosses its boundary. */
+function lineIntersectsPolygon(line: readonly Position[], cellRing: readonly Position[]): boolean {
+  return line.some((point) => pointInRing(point, cellRing)) || ringsIntersect(line, cellRing);
 }
 
 function polygonIntersectsPolygon(areaRings: readonly (readonly number[])[][], cellRing: readonly Position[]): boolean {
@@ -276,4 +360,47 @@ function pointOnSegment(point: Position, start: Position, end: Position): boolea
     point[1] >= Math.min(start[1], end[1]) &&
     point[1] <= Math.max(start[1], end[1])
   );
+}
+
+function toPosition(position: readonly number[]): Position {
+  const [longitude, latitude] = position;
+  if (longitude === undefined || latitude === undefined) {
+    throw new Error('A supplied river coordinate must contain longitude and latitude.');
+  }
+  return [longitude, latitude];
+}
+
+function geodesicDistanceMetres([longitudeA, latitudeA]: Position, [longitudeB, latitudeB]: Position): number {
+  const latitudeDelta = toRadians(latitudeB - latitudeA);
+  const longitudeDelta = toRadians(longitudeB - longitudeA);
+  const latitudeARadians = toRadians(latitudeA);
+  const latitudeBRadians = toRadians(latitudeB);
+  const haversine =
+    Math.sin(latitudeDelta / 2) ** 2 + Math.cos(latitudeARadians) * Math.cos(latitudeBRadians) * Math.sin(longitudeDelta / 2) ** 2;
+  return 6_371_008.8 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+}
+
+function interpolateGreatCircle(start: Position, end: Position, fraction: number): Position {
+  const distanceRadians = geodesicDistanceMetres(start, end) / 6_371_008.8;
+  if (distanceRadians <= Number.EPSILON) {
+    return start;
+  }
+  const startLatitude = toRadians(start[1]);
+  const startLongitude = toRadians(start[0]);
+  const endLatitude = toRadians(end[1]);
+  const endLongitude = toRadians(end[0]);
+  const startWeight = Math.sin((1 - fraction) * distanceRadians) / Math.sin(distanceRadians);
+  const endWeight = Math.sin(fraction * distanceRadians) / Math.sin(distanceRadians);
+  const x = startWeight * Math.cos(startLatitude) * Math.cos(startLongitude) + endWeight * Math.cos(endLatitude) * Math.cos(endLongitude);
+  const y = startWeight * Math.cos(startLatitude) * Math.sin(startLongitude) + endWeight * Math.cos(endLatitude) * Math.sin(endLongitude);
+  const z = startWeight * Math.sin(startLatitude) + endWeight * Math.sin(endLatitude);
+  return [toDegrees(Math.atan2(y, x)), toDegrees(Math.atan2(z, Math.sqrt(x * x + y * y)))];
+}
+
+function toRadians(degrees: number): number {
+  return (degrees * Math.PI) / 180;
+}
+
+function toDegrees(radians: number): number {
+  return (radians * 180) / Math.PI;
 }

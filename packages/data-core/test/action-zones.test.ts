@@ -3,6 +3,7 @@ import {
   createActionZones,
   importDemoSnapshots,
   type HotspotCell,
+  type SuppliedLandform,
 } from '@bassanggum/data-core';
 import { cellToBoundary, gridDisk, latLngToCell } from 'h3-js';
 import { fileURLToPath } from 'node:url';
@@ -106,6 +107,37 @@ describe('createActionZones', () => {
 
     expect(zones[0]).toMatchObject({ kind: 'lake', name: 'Fixture Lake', sourceCellIds: [h3Index] });
     expect(zones[0]).not.toHaveProperty('removalAuthorized');
+  });
+
+  it('splits a supplied river line into deterministic two-kilometre reaches with per-reach cell evidence', () => {
+    const riverCells = [
+      hotspotCell(latLngToCell(36.5715, 128.565, 8), 'lepomis-macrochirus', 11),
+      hotspotCell(latLngToCell(36.5715, 128.587, 8), 'lepomis-macrochirus', 7),
+      hotspotCell(latLngToCell(36.5715, 128.61, 8), 'lepomis-macrochirus', 4),
+    ];
+    const river = {
+      id: 'fixture-river',
+      name: 'Fixture River',
+      kind: 'river_segment' as const,
+      geometry: {
+        type: 'LineString' as const,
+        coordinates: [
+          [128.56, 36.5715] as [number, number],
+          [128.63, 36.5715] as [number, number],
+        ],
+      },
+    } satisfies SuppliedLandform;
+
+    const zones = createActionZones(riverCells, [river]);
+
+    expect(zones.map((zone) => ('name' in zone ? zone.name : undefined))).toEqual([
+      'Fixture River — Reach 01',
+      'Fixture River — Reach 02',
+      'Fixture River — Reach 03',
+    ]);
+    expect(zones.map((zone) => zone.score)).toEqual([11, 7, 4]);
+    expect(zones.map((zone) => zone.sourceCellIds)).toEqual(riverCells.map((cell) => [cell.h3Index]));
+    expect(createActionZones(riverCells, [river])).toEqual(zones);
   });
 
   it('emits privacy-safe, serializable zones without precise points or device tokens', () => {

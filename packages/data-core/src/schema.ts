@@ -48,6 +48,22 @@ export const MultiPolygonSchema = z
 
 export const AreaGeometrySchema = z.discriminatedUnion('type', [PolygonSchema, MultiPolygonSchema]);
 
+export const LineStringSchema = z
+  .object({
+    type: z.literal('LineString'),
+    coordinates: z.array(PositionSchema).min(2),
+  })
+  .strict();
+
+export const MultiLineStringSchema = z
+  .object({
+    type: z.literal('MultiLineString'),
+    coordinates: z.array(z.array(PositionSchema).min(2)).min(1),
+  })
+  .strict();
+
+export const LandformLineGeometrySchema = z.discriminatedUnion('type', [LineStringSchema, MultiLineStringSchema]);
+
 export const DatasetSourceSchema = z
   .object({
     datasetId: NonEmptyString,
@@ -256,14 +272,18 @@ export const ActionZoneSchema = z.discriminatedUnion('kind', [
  * Caller-supplied context for named zones. Its required geometry makes the
  * association explicit; this data structure does not authorize removal.
  */
-export const SuppliedLandformSchema = z
+const SuppliedLandformBaseSchema = z
   .object({
     id: NonEmptyString,
     name: NonEmptyString,
-    kind: NamedActionZoneKindSchema,
-    geometry: AreaGeometrySchema,
   })
   .strict();
+
+export const SuppliedLandformSchema = z.discriminatedUnion('kind', [
+  SuppliedLandformBaseSchema.extend({ kind: z.literal('lake'), geometry: AreaGeometrySchema }),
+  SuppliedLandformBaseSchema.extend({ kind: z.literal('forest_habitat'), geometry: AreaGeometrySchema }),
+  SuppliedLandformBaseSchema.extend({ kind: z.literal('river_segment'), geometry: LandformLineGeometrySchema }),
+]);
 
 export const PublicDataBundleSchema = z
   .object({
@@ -284,6 +304,7 @@ export type OfficialProvenance = z.infer<typeof OfficialProvenanceSchema>;
 export type Species = z.infer<typeof SpeciesSchema>;
 export type OfficialOccurrence = z.infer<typeof OfficialOccurrenceSchema>;
 export type AreaGeometry = z.infer<typeof AreaGeometrySchema>;
+export type LandformLineGeometry = z.infer<typeof LandformLineGeometrySchema>;
 export type HabitatArea = z.infer<typeof HabitatAreaSchema>;
 export type Waterbody = z.infer<typeof WaterbodySchema>;
 export type RestrictedArea = z.infer<typeof RestrictedAreaSchema>;
