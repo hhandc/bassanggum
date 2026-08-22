@@ -15,6 +15,14 @@
     }
   },
   "scripts": {
-    "build": "tsc --project tsconfig.json"
+    "build": "tsc --project tsconfig.json",
+    "test": "pnpm --dir ../.. exec vitest --config vitest.workspace.ts run packages/mcp-server/test",
+    "typecheck": "tsc --noEmit --project tsconfig.json",
+    "start": "pnpm run build && node dist/index.js"
+  },
+  "dependencies": {
+    "@bassanggum/data-core": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^3.25.76"
   }
 }

@@ -13,7 +13,8 @@
     "typecheck": "pnpm build && tsc --noEmit --project tsconfig.base.json",
     "test": "pnpm build && vitest --config vitest.workspace.ts run",
     "build": "pnpm --recursive --if-present run build",
-    "demo:data": "pnpm --filter @bassanggum/data-core run import:demo"
+    "demo:data": "pnpm --filter @bassanggum/data-core run import:demo",
+    "mcp": "pnpm --filter @bassanggum/mcp-server run start"
   },
   "devDependencies": {
     "@types/node": "^22.18.0",

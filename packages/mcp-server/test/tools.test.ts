@@ -1,0 +1,114 @@
+import { importDemoSnapshots } from '@bassanggum/data-core';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+import {
+  findRemovalEvents,
+  getAreaProfile,
+  getDataProvenance,
+  getHotspots,
+  getSpeciesGuidance,
+  listSpecies,
+  searchOccurrences,
+} from '../src/tools.js';
+
+const demoDirectory = fileURLToPath(new URL('../../../data/raw/demo/', import.meta.url));
+const bundle = importDemoSnapshots(demoDirectory);
+
+describe('MCP data queries', () => {
+  it('filters species by category with source-attributed results', () => {
+    const species = listSpecies(bundle, { category: 'fish' });
+
+    expect(species).not.toHaveLength(0);
+    expect(species.every((item) => item.category === 'fish')).toBe(true);
+    expect(species[0]).toMatchObject({
+      evidenceType: 'official',
+      provenance: expect.arrayContaining([expect.objectContaining({ datasetId: expect.any(String), sourceUrl: expect.any(String) })]),
+    });
+  });
+
+  it('returns official-source provenance with a hotspot result', () => {
+    expect(getHotspots(bundle, { speciesId: 'lepomis-macrochirus' })[0]).toMatchObject({
+      evidenceType: 'official',
+      provenance: { datasetId: expect.any(String), sourceUrl: expect.any(String) },
+    });
+  });
+
+  it('never returns an exact community location from occurrence search', () => {
+    const result = searchOccurrences({
+      ...bundle,
+      verifiedCommunitySignals: [{
+        id: 'community:verified:one',
+        speciesId: 'lepomis-macrochirus',
+        evidenceSource: 'community_verified',
+        signalType: 'sighting',
+        publicGeometry: { type: 'Point', coordinates: [128.599312345, 36.571598765] },
+        verifiedAt: '2026-08-22T00:00:00.000Z',
+      }],
+    }, { source: 'community_verified' });
+
+    expect(JSON.stringify(result)).not.toContain('exactLocation');
+    expect(JSON.stringify(result)).not.toContain('publicGeometry');
+    expect(JSON.stringify(result)).not.toContain('128.599312345');
+  });
+
+  it('paginates occurrence results using an opaque next cursor', () => {
+    const firstPage = searchOccurrences(bundle, { source: 'official', limit: 1 });
+
+    expect(firstPage).toHaveLength(1);
+    expect(firstPage.nextCursor).toEqual(expect.any(String));
+    expect(searchOccurrences(bundle, { source: 'official', limit: 1, cursor: firstPage.nextCursor })).not.toEqual(firstPage);
+  });
+
+  it('provides area restrictions, score explanations, species, and matching events', () => {
+    const zone = bundle.actionZones[0]!;
+
+    expect(getAreaProfile(bundle, { areaId: zone.id })).toMatchObject({
+      id: zone.id,
+      topSpecies: expect.any(Array),
+      scoreExplanation: expect.any(String),
+      restrictions: expect.any(Array),
+      matchingEvents: expect.any(Array),
+      evidenceType: expect.any(String),
+      provenance: expect.any(Array),
+    });
+  });
+
+  it('matches public waterbodies, restrictions, and events by their geometry', () => {
+    const zone = bundle.actionZones[0]!;
+    const source = bundle.officialOccurrences[0]!;
+    const profile = getAreaProfile({
+      ...bundle,
+      waterbodies: [{ ...source, id: 'waterbody:fixture', name: 'Fixture Lake', kind: 'lake', geometry: zone.geometry }],
+      restrictedAreas: [{ ...source, id: 'restricted:fixture', name: 'Fixture Restriction', restriction: 'No collection.', geometry: zone.geometry }],
+      verifiedEvents: [{
+        ...source,
+        id: 'event:fixture',
+        organizer: 'Fixture Organizer',
+        title: 'Fixture Removal Event',
+        eventUrl: 'https://example.com/events/fixture',
+        startsAt: '2026-08-23T00:00:00.000Z',
+        endsAt: '2026-08-23T01:00:00.000Z',
+        eligibleSpeciesIds: [zone.speciesId],
+        rewardWording: 'Fixture reward.',
+        eligibilityNotes: 'Fixture eligibility.',
+        validatedAt: '2026-08-22T00:00:00.000Z',
+        geometry: zone.geometry,
+      }],
+    }, { areaId: zone.id });
+
+    expect(profile).toMatchObject({
+      matchingWaterbodies: [expect.objectContaining({ id: 'waterbody:fixture' })],
+      restrictions: [expect.objectContaining({ id: 'restricted:fixture' })],
+      matchingEvents: [expect.objectContaining({ id: 'event:fixture' })],
+    });
+  });
+
+  it('returns guidance and provenance with public source metadata', () => {
+    expect(getSpeciesGuidance(bundle, { speciesId: 'lepomis-macrochirus' })).toMatchObject({
+      evidenceType: 'official',
+      provenance: expect.any(Array),
+    });
+    expect(getDataProvenance(bundle, {})).not.toHaveLength(0);
+    expect(findRemovalEvents(bundle, {})).toEqual(expect.any(Array));
+  });
+});
