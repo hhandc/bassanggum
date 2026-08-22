@@ -1,0 +1,14 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: bassanggum
+      POSTGRES_USER: bassanggum
+      POSTGRES_PASSWORD: bassanggum
+    ports:
+      - "5432:5432"
+    volumes:
+      - bassanggum-postgis:/var/lib/postgresql/data
+
+volumes:
+  bassanggum-postgis:

@@ -1,0 +1,19 @@
+{
+  "name": "@bassanggum/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "dev": "tsx watch src/index.ts",
+    "test": "vitest run --config vitest.config.ts",
+    "db:migrate": "echo 'Database migrations are added in Task 3.'",
+    "db:seed": "echo 'Database seeding is added in Task 3.'"
+  },
+  "dependencies": {
+    "fastify": "^5.2.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2"
+  }
+}
