@@ -93,6 +93,7 @@ describe('normalized public-data schemas', () => {
           },
         ],
         verifiedEvents: [],
+        actionZones: [],
       }),
     ).toThrow();
   });
@@ -107,6 +108,7 @@ describe('normalized public-data schemas', () => {
         restrictedAreas: [],
         verifiedCommunitySignals: [],
         verifiedEvents: [],
+        actionZones: [],
       }),
     ).toMatchObject({ verifiedCommunitySignals: [] });
   });

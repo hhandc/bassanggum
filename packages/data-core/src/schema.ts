@@ -195,6 +195,76 @@ export const VerifiedEventSchema = z
   .merge(OfficialProvenanceSchema)
   .strict();
 
+const H3CellIdSchema = NonEmptyString;
+const PublicEvidenceContributionSchema = z
+  .object({
+    id: NonEmptyString,
+    weight: z.number().finite(),
+  })
+  .strict();
+
+/**
+ * A deliberately point-free copy of the evidence used to score one H3 cell.
+ * Action zones expose H3-level traceability, never occurrence coordinates or
+ * internal community-device identifiers.
+ */
+export const ActionZoneEvidenceCellSchema = z
+  .object({
+    h3Index: H3CellIdSchema,
+    score: z.number().finite(),
+    contributingIds: z.array(NonEmptyString),
+    officialOccurrences: z.array(PublicEvidenceContributionSchema),
+    habitatAreas: z.array(PublicEvidenceContributionSchema),
+    verifiedCommunitySignals: z.array(PublicEvidenceContributionSchema),
+    adjacentCells: z.array(PublicEvidenceContributionSchema),
+  })
+  .strict();
+
+export const ActionZoneEvidenceSchema = z
+  .object({
+    cells: z.array(ActionZoneEvidenceCellSchema).min(1),
+  })
+  .strict();
+
+export const ActionZoneKindSchema = z.enum(['lake', 'river_segment', 'forest_habitat', 'unnamed_cell_cluster']);
+const NamedActionZoneKindSchema = z.enum(['lake', 'river_segment', 'forest_habitat']);
+
+const ActionZoneBaseSchema = z
+  .object({
+    id: NonEmptyString,
+    speciesId: NonEmptyString,
+    score: z.number().finite(),
+    sourceCellIds: z.array(H3CellIdSchema).min(1),
+    evidence: ActionZoneEvidenceSchema,
+    geometry: MultiPolygonSchema,
+  })
+  .strict();
+
+export const ActionZoneSchema = z.discriminatedUnion('kind', [
+  ActionZoneBaseSchema.extend({ kind: z.literal('unnamed_cell_cluster') }),
+  ActionZoneBaseSchema.extend({ kind: NamedActionZoneKindSchema, name: NonEmptyString }),
+]).superRefine((zone, context) => {
+  if (new Set(zone.sourceCellIds).size !== zone.sourceCellIds.length) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'Action-zone source H3 cell IDs must be unique.' });
+  }
+  if (new Set(zone.evidence.cells.map((cell) => cell.h3Index)).size !== zone.evidence.cells.length) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: 'Action-zone evidence must contain one trace per H3 cell.' });
+  }
+});
+
+/**
+ * Caller-supplied context for named zones. Its required geometry makes the
+ * association explicit; this data structure does not authorize removal.
+ */
+export const SuppliedLandformSchema = z
+  .object({
+    id: NonEmptyString,
+    name: NonEmptyString,
+    kind: NamedActionZoneKindSchema,
+    geometry: AreaGeometrySchema,
+  })
+  .strict();
+
 export const PublicDataBundleSchema = z
   .object({
     species: z.array(SpeciesSchema),
@@ -204,6 +274,7 @@ export const PublicDataBundleSchema = z
     restrictedAreas: z.array(RestrictedAreaSchema),
     verifiedCommunitySignals: z.array(VerifiedCommunitySignalSchema),
     verifiedEvents: z.array(VerifiedEventSchema),
+    actionZones: z.array(ActionZoneSchema),
   })
   .strict();
 
@@ -212,9 +283,14 @@ export type ImportRun = z.infer<typeof ImportRunSchema>;
 export type OfficialProvenance = z.infer<typeof OfficialProvenanceSchema>;
 export type Species = z.infer<typeof SpeciesSchema>;
 export type OfficialOccurrence = z.infer<typeof OfficialOccurrenceSchema>;
+export type AreaGeometry = z.infer<typeof AreaGeometrySchema>;
 export type HabitatArea = z.infer<typeof HabitatAreaSchema>;
 export type Waterbody = z.infer<typeof WaterbodySchema>;
 export type RestrictedArea = z.infer<typeof RestrictedAreaSchema>;
 export type VerifiedCommunitySignal = z.infer<typeof VerifiedCommunitySignalSchema>;
 export type VerifiedEvent = z.infer<typeof VerifiedEventSchema>;
+export type ActionZoneEvidenceCell = z.infer<typeof ActionZoneEvidenceCellSchema>;
+export type ActionZoneEvidence = z.infer<typeof ActionZoneEvidenceSchema>;
+export type ActionZone = z.infer<typeof ActionZoneSchema>;
+export type SuppliedLandform = z.infer<typeof SuppliedLandformSchema>;
 export type PublicDataBundle = z.infer<typeof PublicDataBundleSchema>;

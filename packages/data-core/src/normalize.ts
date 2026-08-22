@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createProvenance } from './provenance.js';
 import { buildSpeciesCatalog } from './catalog.js';
+import { createActionZones } from './action-zones.js';
+import { calculateHotspotCells } from './hotspots.js';
 import {
   AreaGeometrySchema,
   DatasetSourceSchema,
@@ -385,5 +387,14 @@ export function importDemoSnapshots(inputDirectory: string): PublicDataBundle {
     restrictedAreas: [],
     verifiedCommunitySignals: [],
     verifiedEvents: [],
+    actionZones: createActionZones(
+      calculateHotspotCells({
+        now: importRun.importedAt,
+        officialOccurrences: occurrences,
+        habitatAreas: [],
+        verifiedCommunitySignals: [],
+        verifiedEvents: [],
+      }),
+    ),
   });
 }
