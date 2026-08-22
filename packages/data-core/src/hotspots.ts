@@ -30,7 +30,7 @@ export const HOTSPOT_WEIGHTS = {
   watchMinimumScore: 10,
   emerging: {
     minimumSignals: 3,
-    minimumProfiles: 2,
+    minimumDeviceHashes: 2,
     windowDays: 30,
   },
 } as const;
@@ -38,8 +38,8 @@ export const HOTSPOT_WEIGHTS = {
 export type HotspotStatus = 'known' | 'watch' | 'emerging' | 'none';
 
 export type HotspotCommunitySignal = VerifiedCommunitySignal & {
-  /** An internal anonymous profile identifier; it is never included in output. */
-  profileId: string;
+  /** An internal anonymized device identifier; it is never included in output. */
+  deviceTokenHash: string;
 };
 
 export type HotspotInput = {
@@ -84,7 +84,7 @@ type CellDraft = {
   h3Index: string;
   speciesId: string;
   contributions: Record<ContributionGroup, Map<string, HotspotContribution>>;
-  signalProfiles: Map<string, Set<string>>;
+  signalDeviceHashes: Map<string, Set<string>>;
   hasOfficialEvidence: boolean;
 };
 
@@ -136,9 +136,9 @@ export function calculateHotspotCells(input: HotspotInput): HotspotCell[] {
     );
 
     if (isRecentSighting(signal, now)) {
-      const signalProfiles = draft.signalProfiles.get(signal.id) ?? new Set<string>();
-      signalProfiles.add(signal.profileId);
-      draft.signalProfiles.set(signal.id, signalProfiles);
+      const signalDeviceHashes = draft.signalDeviceHashes.get(signal.id) ?? new Set<string>();
+      signalDeviceHashes.add(signal.deviceTokenHash);
+      draft.signalDeviceHashes.set(signal.id, signalDeviceHashes);
     }
   }
 
@@ -171,7 +171,7 @@ function getDraft(drafts: Map<string, CellDraft>, speciesId: string, h3Index: st
       verifiedCommunitySignals: new Map(),
       adjacentCells: new Map(),
     },
-    signalProfiles: new Map(),
+    signalDeviceHashes: new Map(),
     hasOfficialEvidence: false,
   };
   drafts.set(key, draft);
@@ -268,16 +268,16 @@ function statusFor(draft: CellDraft, score: number): HotspotStatus {
 }
 
 function isEmerging(draft: CellDraft): boolean {
-  const distinctSignals = [...draft.signalProfiles.keys()];
-  const profiles = new Set([...draft.signalProfiles.values()].flatMap((profileIds) => [...profileIds]));
+  const distinctSignals = [...draft.signalDeviceHashes.keys()];
+  const deviceHashes = new Set([...draft.signalDeviceHashes.values()].flatMap((hashes) => [...hashes]));
   return (
     distinctSignals.length >= HOTSPOT_WEIGHTS.emerging.minimumSignals &&
-    profiles.size >= HOTSPOT_WEIGHTS.emerging.minimumProfiles
+    deviceHashes.size >= HOTSPOT_WEIGHTS.emerging.minimumDeviceHashes
   );
 }
 
 function isRecentSighting(signal: HotspotCommunitySignal, now: Date): boolean {
-  if (signal.signalType !== 'sighting' || signal.profileId.trim() === '') {
+  if (signal.signalType !== 'sighting' || signal.deviceTokenHash.trim() === '') {
     return false;
   }
 
@@ -291,14 +291,31 @@ function officialOccurrenceWeight(observedAt: string | undefined, now: Date): nu
     return HOTSPOT_WEIGHTS.officialOccurrence.older;
   }
 
-  const age = Math.max(0, now.getTime() - toDate(observedAt, 'official observation').getTime());
-  if (age <= 365 * DAY_MS) {
+  const observedDate = toDate(observedAt, 'official observation');
+  if (observedDate >= calendarYearsAgo(now, 1)) {
     return HOTSPOT_WEIGHTS.officialOccurrence.withinTwelveMonths;
   }
-  if (age <= 3 * 365 * DAY_MS) {
+  if (observedDate >= calendarYearsAgo(now, 3)) {
     return HOTSPOT_WEIGHTS.officialOccurrence.withinThreeYears;
   }
   return HOTSPOT_WEIGHTS.officialOccurrence.older;
+}
+
+function calendarYearsAgo(now: Date, years: number): Date {
+  const targetYear = now.getUTCFullYear() - years;
+  const targetMonth = now.getUTCMonth();
+  const finalDayOfTargetMonth = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+  return new Date(
+    Date.UTC(
+      targetYear,
+      targetMonth,
+      Math.min(now.getUTCDate(), finalDayOfTargetMonth),
+      now.getUTCHours(),
+      now.getUTCMinutes(),
+      now.getUTCSeconds(),
+      now.getUTCMilliseconds(),
+    ),
+  );
 }
 
 function habitatWeight(frequencyBand: string | undefined): number | undefined {
