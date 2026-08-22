@@ -23,6 +23,7 @@ const IdentificationMediaSchema = z
   .object({
     speciesId: NonEmptyString,
     url: z.string().url(),
+    sourceUrl: z.string().url(),
     credit: NonEmptyString,
     licence: NonEmptyString,
     generated: z.boolean().optional(),

@@ -50,12 +50,13 @@ export const GYEONGBUK_BOUNDARY: { type: 'Polygon'; coordinates: [BoundaryPositi
 
 type SpeciesDetails = {
   id: string;
-  category: Species['category'];
+  category: 'fish' | 'plant';
   koreanName?: string;
   scientificName?: string;
   englishName?: string;
 };
 type KnownSpecies = Pick<SpeciesDetails, 'id' | 'category'> & { scientificName: string; englishName: string };
+type ObservedSpecies = Omit<SpeciesDetails, 'category'> & { category: 'fish' | 'plant' };
 
 const KNOWN_SPECIES = new Map<string, KnownSpecies>([
   ['블루길', { id: 'lepomis-macrochirus', category: 'fish', scientificName: 'Lepomis macrochirus', englishName: 'Bluegill' }],
@@ -269,7 +270,7 @@ function verifyPayloadChecksum(source: DatasetSource, payload: unknown, path: st
   }
 }
 
-function speciesFromRow(row: unknown): Species | null {
+function speciesFromRow(row: unknown): ObservedSpecies | null {
   if (!isRecord(row)) {
     return null;
   }
@@ -303,19 +304,18 @@ export function importDemoSnapshots(inputDirectory: string): PublicDataBundle {
     const species = speciesFromRow(input.row);
     return species === null ? [] : [{ ...input, species }];
   });
-  const species = new Map<string, Species>();
+  const observedSpeciesIds = new Set<string>();
   const occurrences: OfficialOccurrence[] = [];
   for (const input of occurrenceInputs) {
     const occurrence = normalizeOccurrenceRow(input.row, input.source, importRun);
     if (occurrence !== null) {
       occurrences.push(occurrence);
-      species.set(input.species.id, input.species);
+      observedSpeciesIds.add(input.species.id);
     }
   }
   const habitatAreas = habitat.features
     .map((feature) => normalizeHabitatFeature(feature, habitat.source, importRun))
     .filter((record): record is HabitatArea => record !== null);
-  const observedSpeciesIds = new Set(species.keys());
   const cataloguedSpecies = buildSpeciesCatalog(catalogue.records, catalogue.media).filter((record) => observedSpeciesIds.has(record.id));
 
   return PublicDataBundleSchema.parse({

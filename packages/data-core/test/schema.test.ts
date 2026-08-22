@@ -54,6 +54,10 @@ describe('normalized public-data schemas', () => {
     expect(() => SpeciesSchema.parse({ id: 'rat', category: 'mammal' })).toThrow();
   });
 
+  it('requires an explicit action policy for every species', () => {
+    expect(() => SpeciesSchema.parse({ id: 'lepomis-macrochirus', category: 'fish' })).toThrow(/actionPolicy/i);
+  });
+
   it('rejects a polygon with an unclosed linear ring', () => {
     expect(() =>
       PolygonSchema.parse({

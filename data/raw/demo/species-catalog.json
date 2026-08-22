@@ -46,15 +46,17 @@
   "media": [
     {
       "speciesId": "lepomis-macrochirus",
-      "url": "https://commons.wikimedia.org/wiki/File:Lepomis_macrochirus.jpg",
-      "credit": "Wikimedia Commons contributors",
-      "licence": "See Wikimedia Commons file page for current licence and attribution"
+      "url": "https://commons.wikimedia.org/w/index.php?title=File:Lepomis_macrochirus_01.jpg&oldid=1064258190",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?title=File:Lepomis_macrochirus_01.jpg&oldid=1064258190",
+      "credit": "Eric Engbretson, U.S. Fish and Wildlife Service",
+      "licence": "Public domain — U.S. federal government work (U.S. Fish and Wildlife Service)"
     },
     {
       "speciesId": "sicyos-angulatus",
-      "url": "https://commons.wikimedia.org/wiki/File:Sicyos_angulatus.jpg",
-      "credit": "Wikimedia Commons contributors",
-      "licence": "See Wikimedia Commons file page for current licence and attribution"
+      "url": "https://commons.wikimedia.org/w/index.php?title=File:Sicyos_angulatus_NRCS-002.jpg&oldid=911166599",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?title=File:Sicyos_angulatus_NRCS-002.jpg&oldid=911166599",
+      "credit": "Robert H. Mohlenbrock, USDA Soil Conservation Service",
+      "licence": "Public Domain Mark 1.0 (free of known copyright restrictions)"
     }
   ]
 }

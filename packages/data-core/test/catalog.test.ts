@@ -30,12 +30,14 @@ const media = [
   {
     speciesId: 'lepomis-macrochirus',
     url: 'https://example.test/bluegill.jpg',
+    sourceUrl: 'https://example.test/bluegill-source',
     credit: 'Example photographer',
     licence: 'CC BY 4.0',
   },
   {
     speciesId: 'sicyos-angulatus',
     url: 'https://example.test/bur-cucumber.jpg',
+    sourceUrl: 'https://example.test/bur-cucumber-source',
     credit: 'Example photographer',
     licence: 'CC BY 4.0',
   },
@@ -57,7 +59,13 @@ describe('species catalogue', () => {
           id: 'lepomis-macrochirus',
           koreanName: '블루길',
           actionPolicy: 'official_event_only',
-          identificationMedia: [expect.objectContaining({ credit: 'Example photographer', licence: 'CC BY 4.0' })],
+          identificationMedia: [
+            expect.objectContaining({
+              credit: 'Example photographer',
+              licence: 'CC BY 4.0',
+              sourceUrl: 'https://example.test/bluegill-source',
+            }),
+          ],
         }),
       ]),
     );

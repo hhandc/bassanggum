@@ -94,7 +94,7 @@ export const SpeciesSchema = z
       .object({ text: NonEmptyString, sourceUrl: z.string().url() })
       .strict()
       .optional(),
-    actionPolicy: z.enum(['community_removal', 'official_event_only', 'report_only']).optional(),
+    actionPolicy: z.enum(['community_removal', 'official_event_only', 'report_only']),
     cookingGuidance: z
       .object({ text: NonEmptyString, sourceUrl: z.string().url() })
       .strict()
@@ -105,6 +105,7 @@ export const SpeciesSchema = z
           .object({
             speciesId: NonEmptyString,
             url: z.string().url(),
+            sourceUrl: z.string().url(),
             credit: NonEmptyString,
             licence: NonEmptyString,
             generated: z.boolean().optional(),
