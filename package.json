@@ -10,14 +10,12 @@
   "packageManager": "pnpm@11.19.0",
   "scripts": {
     "lint": "pnpm typecheck",
-    "typecheck": "tsc --noEmit --project tsconfig.base.json",
-    "test": "vitest --config vitest.workspace.ts run",
-    "build": "pnpm --recursive --if-present run build",
-    "demo:data": "pnpm --filter @bassanggum/data-core run demo",
-    "sync:ecobank": "pnpm --filter @bassanggum/data-core run sync:ecobank",
-    "mcp": "pnpm --filter @bassanggum/mcp-server run start"
+    "typecheck": "pnpm build && tsc --noEmit --project tsconfig.base.json",
+    "test": "pnpm build && vitest --config vitest.workspace.ts run",
+    "build": "pnpm --recursive --if-present run build"
   },
   "devDependencies": {
+    "@types/node": "^22.18.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
   }

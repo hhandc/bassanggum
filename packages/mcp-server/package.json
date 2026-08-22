@@ -7,7 +7,14 @@
   "engines": {
     "node": ">=22"
   },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
   "scripts": {
-    "build": "tsc --noEmit --project ../../tsconfig.base.json"
+    "build": "tsc --project tsconfig.json"
   }
 }

@@ -8,10 +8,14 @@
     "node": ">=22"
   },
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
   },
   "scripts": {
-    "test": "pnpm --dir ../.. exec vitest --config vitest.workspace.ts run",
-    "build": "tsc --noEmit --project ../../tsconfig.base.json"
+    "test": "pnpm run build && pnpm --dir ../.. exec vitest --config vitest.workspace.ts run",
+    "build": "tsc --project tsconfig.json"
   }
 }
