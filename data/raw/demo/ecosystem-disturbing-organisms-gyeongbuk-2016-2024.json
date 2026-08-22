@@ -1,11 +1,11 @@
 {
   "source": {
-    "datasetId": "15022461",
+    "datasetId": "RSD_0000000000012894",
     "title": "생태계교란생물 통합데이터 (2016-2024)",
-    "provider": "Korean Public Data Portal (data.go.kr); original publisher not identified in the supplied workbook",
-    "sourceUrl": "https://www.data.go.kr/data/15022461/fileData.do",
-    "licence": "No exact licence was verified from the supplied workbook or its data-description file; review the data.go.kr record before redistribution.",
-    "attribution": "Korean Public Data Portal dataset 15022461; bounded Gyeongbuk snapshot from the supplied workbook.",
+    "provider": "National Institute of Ecology (국립생태원)",
+    "sourceUrl": "https://www.nie-ecobank.kr/rdm/rsrchdoi/selectRsrchDtaDtlVw.do?rsrchDtaId=RSD_0000000000012894",
+    "licence": "No exact licence was verified from the supplied workbook or the available EcoBank record.",
+    "attribution": "National Institute of Ecology (국립생태원), 생태계교란생물 통합데이터 (2016-2024).",
     "snapshotFilename": "ecosystem-disturbing-organisms-gyeongbuk-2016-2024.json",
     "sourceFileChecksum": "sha256:090f97e42d3157cb37b4cb68a1d548f03387f3d2f77c27af10c9704fe6c570f9",
     "checksum": "sha256:1455737f092b7ff9e788f7b1692992ce9d9a249ab7b89e430241c1b72d64a0ab"

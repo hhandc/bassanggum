@@ -151,7 +151,7 @@ describe('createActionZones', () => {
     expect(serialized).not.toContain('"points"');
   });
 
-  it('creates no named landforms in the actual no-key two-source bundle', () => {
+  it('creates no named landforms in the actual no-key three-source bundle', () => {
     const inputDirectory = fileURLToPath(new URL('../../../data/raw/demo/', import.meta.url));
     const bundle = importDemoSnapshots(inputDirectory);
 

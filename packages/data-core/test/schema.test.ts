@@ -12,10 +12,10 @@ const point = {
 };
 
 const officialProvenance = {
-  datasetId: '15022461',
+  datasetId: 'RSD_0000000000012894',
   provider: 'National Institute of Ecology',
-  sourceUrl: 'https://www.data.go.kr/data/15022461',
-  licence: 'KOGL Type 1',
+  sourceUrl: 'https://www.nie-ecobank.kr/rdm/rsrchdoi/selectRsrchDtaDtlVw.do?rsrchDtaId=RSD_0000000000012894',
+  licence: 'No exact licence was verified from the supplied workbook or the available EcoBank record.',
   attribution: 'National Institute of Ecology',
   importRunId: 'import-2026-08-22',
   sourceRecordId: 'eco-42',
@@ -25,14 +25,14 @@ describe('normalized public-data schemas', () => {
   it('accepts a source-attributed official occurrence', () => {
     expect(
       OfficialOccurrenceSchema.parse({
-        id: 'official:15022461:eco-42',
+        id: 'official:RSD_0000000000012894:eco-42',
         speciesId: 'bass',
         evidenceSource: 'official',
         geometry: point,
         ...officialProvenance,
       }),
     ).toMatchObject({
-      datasetId: '15022461',
+      datasetId: 'RSD_0000000000012894',
       sourceRecordId: 'eco-42',
     });
   });
@@ -40,7 +40,7 @@ describe('normalized public-data schemas', () => {
   it('rejects an official occurrence without a source record ID', () => {
     expect(() =>
       OfficialOccurrenceSchema.parse({
-        id: 'official:15022461:eco-42',
+        id: 'official:RSD_0000000000012894:eco-42',
         speciesId: 'bass',
         evidenceSource: 'official',
         geometry: point,

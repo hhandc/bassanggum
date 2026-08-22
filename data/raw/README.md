@@ -7,17 +7,18 @@ The imported records are source snapshots, not official API exports.
 
 | Snapshot | Source and publisher | Coverage and exact filter | Integrity |
 | --- | --- | --- | --- |
-| `ecosystem-disturbing-organisms-gyeongbuk-2016-2024.json` | [data.go.kr dataset 15022461](https://www.data.go.kr/data/15022461/fileData.do), supplied ecosystem-disturbing-organism workbook. The original publisher is not identified in the supplied workbook or its data-description workbook. | 2016–2024; `시도명=경상북도`, `분류군명=어류|식물`, valid WGS84 coordinates, and the committed Gyeongbuk boundary. 4,780 retained source rows. | Full supplied workbook: `sha256:090f97e42d3157cb37b4cb68a1d548f03387f3d2f77c27af10c9704fe6c570f9`; committed snapshot file: `sha256:f883c7cdec84a9efe7bd4e3ee9f1bc4a984691d228e087932ba1a516dc14800d`. |
+| `ecosystem-disturbing-organisms-gyeongbuk-2016-2024.json` | National Institute of Ecology (국립생태원), [생태계교란생물 통합데이터 record](https://www.nie-ecobank.kr/rdm/rsrchdoi/selectRsrchDtaDtlVw.do?rsrchDtaId=RSD_0000000000012894), dataset `RSD_0000000000012894`. | 2016–2024; `시도명=경상북도`, `분류군명=어류|식물`, valid WGS84 coordinates, and the committed Gyeongbuk boundary. 4,780 retained source rows. | Full supplied workbook: `sha256:090f97e42d3157cb37b4cb68a1d548f03387f3d2f77c27af10c9704fe6c570f9`; committed snapshot file: `sha256:7870f11e7ea5b288c4fa4592e5933c1bd32af71c8de0af5607a84bb44bed7882`. |
 | `nie-alien-fish-gyeongbuk-2015-2022.json` | National Institute of Ecology (국립생태원), [외래생물_2015_2022 record](https://www.nie-ecobank.kr/rdm/rsrchdoi/selectRsrchDtaDtlVw.do?rsrchDtaId=RSD_0000000000012824), dataset `RSD_0000000000012824`, DOI `10.22756/ASD.20240000000888`, published 2024-09-20. | 2015–2022; `시도명=경상북도`, valid WGS84 coordinates, and the committed Gyeongbuk boundary. 251 retained source rows. | UTF-8-sig supplied CSV: `sha256:f606443c122380949f9785876b60c48762f88e3f4cf8c8e6101f9eceb5628558`; committed snapshot file: `sha256:a0420fc342014bffd779cef05627ca9b3da1a7d47ce1a901da0af97546a66678`. |
+| `nie-alien-plants-gyeongbuk-2015-2021.json` | National Institute of Ecology (국립생태원), [외래식물_2015_2021 record](https://www.nie-ecobank.kr/rdm/rsrchdoi/selectRsrchDtaDtlVw.do?rsrchDtaId=RSD_0000000000012705), dataset `RSD_0000000000012705`. | 2015–2021; standalone UTF-8-sig CSV only; `시도명=경상북도`, valid WGS84 coordinates, and the committed Gyeongbuk boundary. 25,357 retained source rows. | Supplied CSV: `sha256:6301e0902f81433f6f3cb94f9251f3bf85814b54b91d6c400e7767c674ff471c`; committed snapshot file: `sha256:7eea8e71c5c34b9f2ac5e9e2c9b6be447c19528bb573c2b67ff34b48fa1ff04a`. |
 
 ## Licence and attribution
 
-The supplied data.go.kr workbook and data-description workbook did not state an
-exact redistribution licence. The snapshot therefore records that fact rather
-than inferring a licence; check the linked data.go.kr record before wider
-redistribution. The NIE record supplies KOGL terms, but does not identify a
-KOGL type; the snapshot preserves that wording exactly as
-`KOGL terms (type unspecified on the EcoBank record)`.
+No exact redistribution licence was verified for the supplied workbook or the
+available EcoBank record `RSD_0000000000012894`; the snapshot says so rather
+than inventing a licence type. Licence wording was likewise not verified for
+the standalone `RSD_0000000000012705` source record. The fish record supplies
+KOGL terms, but does not identify a KOGL type; the snapshot preserves that
+wording exactly as `KOGL terms (type unspecified on the EcoBank record)`.
 
 Each JSON source object records its dataset ID, title, provider, source URL,
 source-file checksum, snapshot checksum, and, where supplied, DOI and
@@ -27,7 +28,7 @@ identifier in `sourceRecordId` and has a stable
 
 ## Scope and audit
 
-There are no habitat polygons in either source, so the no-key public bundle
+There are no habitat polygons in any source, so the no-key public bundle
 always has an empty `habitatAreas` array. The workbook publishes all 4,780
 source rows across its 15 reviewed fish/plant species. Bass and bluegill have
 `official_event_only` policies; each of the 13 plants has `report_only` and no
@@ -37,7 +38,17 @@ catalogue-confirmed bass/bluegill rows. Its audit block records the 20 rejected
 rows: 18 crucian carp (`떡붕어`) and 2 carp (`잉어`). Those fish are survey
 evidence only, not removal, bounty, or cooking targets.
 
-When a matching bass or bluegill observation appears in both sources with the
+The standalone plant snapshot contains all 25,357 valid `경상북도`-labelled
+rows after the local boundary gate; none was rejected by geography alone. It
+publishes only 2,553 rows for the 13 reviewed plant species. Its audit retains
+the remaining 22,804 rows (668 species) as source evidence outside the
+platform catalogue; they are not removal targets. It preserves `OBJECTID` as
+`sourceRecordId` and uses the valid `조사일자` as the occurrence date. The
+overlapping `외래식물상_2015_2023.csv` from the older `외래생물_2015_2022`
+folder is deliberately neither copied nor ingested, and is not attributed to
+`RSD_0000000000012705`.
+
+When a matching curated fish or plant observation appears across sources with the
 same normalized species, survey date/year, and coordinate, both provenance
 records remain in the bundle. The hotspot scorer rounds each WGS84 longitude
 and latitude to six decimal places (about 0.11 m) before pairing only

@@ -65,6 +65,42 @@ describe('occurrence normalizers', () => {
     });
   });
 
+  it('preserves the alien-plant OBJECTID and actual survey date', () => {
+    const plantSource = {
+      datasetId: 'RSD_0000000000012705',
+      title: '외래식물_2015_2021',
+      provider: 'National Institute of Ecology (국립생태원)',
+      sourceUrl: 'https://www.nie-ecobank.kr/rdm/rsrchdoi/selectRsrchDtaDtlVw.do?rsrchDtaId=RSD_0000000000012705',
+      licence: 'Licence wording was not verified from the supplied source record.',
+      attribution: 'National Institute of Ecology (국립생태원), 외래식물_2015_2021.',
+      snapshotFilename: 'nie-alien-plants-gyeongbuk-2015-2021.json',
+      checksum: 'sha256:plant-snapshot',
+      sourceFileChecksum: 'sha256:plant-source-file',
+    } as DatasetSource;
+
+    const record = normalizeOccurrenceRow(
+      {
+        OBJECTID: '53320',
+        한글보통명: '가시박',
+        학명: 'Sicyos angulatus',
+        조사연도: '2020',
+        조사일자: '2020-10-14',
+        위도: '35.68784444',
+        경도: '128.3274389',
+        시도명: '경상북도',
+      },
+      plantSource,
+      importRun,
+    );
+
+    expect(record).toMatchObject({
+      id: 'official:RSD_0000000000012705:53320',
+      sourceRecordId: '53320',
+      observedAt: '2020-10-14T00:00:00.000Z',
+      datasetId: 'RSD_0000000000012705',
+    });
+  });
+
   it('does not normalize an NIE fish that is absent from the curated disturbance catalogue', () => {
     expect(
       normalizeOccurrenceRow(

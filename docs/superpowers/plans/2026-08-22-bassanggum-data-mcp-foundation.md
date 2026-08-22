@@ -26,9 +26,9 @@ The hackathon demo must be reproducible without an EcoBank API key. It will ther
 
 | Source | MVP use | Required provenance |
 |---|---|---|
-| `한국의 외래생물 분포현황` ecosystem-disturbing-organism integrated workbook (2016–2024) | All valid Gyeongbuk rows where `분류군명` is `어류` or `식물`; primary fish/plant occurrence evidence and the complete 15-species source-A catalogue. Each entry has an explicit policy, but only reviewed fish policy may permit official-event handling. | Dataset `RSD_0000000000012894`; [source record](https://www.nie-ecobank.kr/rdm/rsrchdoi/selectRsrchDtaDtlVw.do?rsrchDtaId=RSD_0000000000012894); preserve source row `ID`, survey year, file checksum, and the licence/attribution shown with the supplied workbook. |
+| `한국의 외래생물 분포현황` ecosystem-disturbing-organism integrated workbook (2016–2024) | All valid Gyeongbuk rows where `분류군명` is `어류` or `식물`; primary fish/plant occurrence evidence and the complete 15-species source-A catalogue. Each entry has an explicit policy, but only reviewed fish policy may permit official-event handling. | Dataset `RSD_0000000000012894`; [source record](https://www.nie-ecobank.kr/rdm/rsrchdoi/selectRsrchDtaDtlVw.do?rsrchDtaId=RSD_0000000000012894); preserve source row `ID`, survey year, file checksum, and accurately record that no exact licence wording was verified. |
 | NIE `외래생물_2015_2022` fish CSV | Gyeongbuk fish occurrence evidence for species already confirmed by the curated fish catalogue; it broadens historical coverage without making every alien fish a removal target. | Dataset `RSD_0000000000012824`; DOI `10.22756/ASD.20240000000888`; National Institute of Ecology; [source record](https://www.nie-ecobank.kr/rdm/rsrchdoi/selectRsrchDtaDtlVw.do?rsrchDtaId=RSD_0000000000012824); KOGL terms; UTF-8 CSV filename and checksum. |
-| NIE `외래식물_2015_2021` plant CSV | Gyeongbuk occurrence evidence for the 13 curated ecosystem-disturbing plant species. Other alien-plant rows remain out of the removal catalogue unless a reviewed policy is added. | Dataset `RSD_0000000000012705`; [source record](https://www.nie-ecobank.kr/rdm/rsrchdoi/selectRsrchDtaDtlVw.do?rsrchDtaId=RSD_0000000000012705); National Institute of Ecology; UTF-8 CSV filename, source row ID, file checksum, and licence wording verified from that record. |
+| NIE `외래식물_2015_2021` plant CSV | Gyeongbuk occurrence evidence for the 13 curated ecosystem-disturbing plant species. Other alien-plant rows remain out of the removal catalogue unless a reviewed policy is added. | Dataset `RSD_0000000000012705`; [source record](https://www.nie-ecobank.kr/rdm/rsrchdoi/selectRsrchDtaDtlVw.do?rsrchDtaId=RSD_0000000000012705); National Institute of Ecology; UTF-8-sig standalone CSV, `OBJECTID`, actual survey date, file checksum, and accurately recorded unverified licence wording. |
 
 The import must retain all three source records and their provenance in the public bundle. Before scoring, it must collapse only semantic cross-source duplicates (same normalized species, survey date/year, and coordinates rounded deterministically to six decimal places) so duplicate publication does not inflate a hotspot. Fish or plants found only in a broader alien-species CSV are observation-only until a reviewed catalogue entry explicitly grants a removal policy; they must not appear as bounty targets or receive removal/cooking guidance. The overlapping `외래식물상_2015_2023.csv` release is not ingested until its own matching source record is verified; it must not be attributed to `RSD_0000000000012705` by assumption.
 
@@ -216,7 +216,7 @@ it('rejects an official occurrence without a source record ID', () => {
 
 it('retains dataset attribution in normalized provenance', () => {
   expect(createProvenance(source, run, 'eco-42')).toMatchObject({
-    datasetId: '15022461',
+    datasetId: 'RSD_0000000000012894',
     sourceRecordId: 'eco-42',
     licence: 'KOGL Type 1',
   });

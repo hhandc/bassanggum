@@ -40,7 +40,11 @@ describe('demo snapshot import', () => {
     expect(snapshot.records.every((record) => record.분류군명 === '어류' || record.분류군명 === '식물')).toBe(true);
     expect(snapshot.records.every((record) => Number.isFinite(Number(record.위도)) && Number.isFinite(Number(record.경도)))).toBe(true);
     expect(snapshot.records.every((record) => isWithinGyeongbuk([Number(record.경도), Number(record.위도)]))).toBe(true);
-    expect(snapshot.source.sourceFileChecksum).toBe('sha256:090f97e42d3157cb37b4cb68a1d548f03387f3d2f77c27af10c9704fe6c570f9');
+    expect(snapshot.source).toMatchObject({
+      datasetId: 'RSD_0000000000012894',
+      sourceUrl: 'https://www.nie-ecobank.kr/rdm/rsrchdoi/selectRsrchDtaDtlVw.do?rsrchDtaId=RSD_0000000000012894',
+      sourceFileChecksum: 'sha256:090f97e42d3157cb37b4cb68a1d548f03387f3d2f77c27af10c9704fe6c570f9',
+    });
   });
 
   it('keeps all NIE Gyeongbuk fish rows but audits the catalogue filter separately', () => {
@@ -62,7 +66,27 @@ describe('demo snapshot import', () => {
     });
   });
 
-  it('imports the two attributed Gyeongbuk source snapshots into the public bundle contract', () => {
+  it('keeps every gated alien-plant source row and audits the non-curated remainder separately', () => {
+    const snapshot = rawSnapshot('nie-alien-plants-gyeongbuk-2015-2021.json');
+
+    expect(snapshot.records).toHaveLength(25_357);
+    expect(snapshot.records.every((record) => record.시도명 === '경상북도')).toBe(true);
+    expect(snapshot.records.every((record) => Number.isFinite(Number(record.위도)) && Number.isFinite(Number(record.경도)))).toBe(true);
+    expect(snapshot.records.every((record) => isWithinGyeongbuk([Number(record.경도), Number(record.위도)]))).toBe(true);
+    expect(snapshot.source).toMatchObject({
+      datasetId: 'RSD_0000000000012705',
+      sourceUrl: 'https://www.nie-ecobank.kr/rdm/rsrchdoi/selectRsrchDtaDtlVw.do?rsrchDtaId=RSD_0000000000012705',
+      sourceFileChecksum: 'sha256:6301e0902f81433f6f3cb94f9251f3bf85814b54b91d6c400e7767c674ff471c',
+    });
+    expect(snapshot.audit).toMatchObject({
+      rawGyeongbukLabelledRowsBeforeCategoryFilter: 25_357,
+      geographicOnlyRejections: 0,
+      publishedRowsAfterCuratedPlantFilter: 2_553,
+      rejectedRowsNotInCuratedDisturbanceCatalogue: 22_804,
+    });
+  });
+
+  it('imports the three attributed Gyeongbuk source snapshots into the public bundle contract', () => {
     const bundle = importDemoSnapshots(demoDirectory);
 
     expect(bundle.species).toEqual(
@@ -72,13 +96,14 @@ describe('demo snapshot import', () => {
         expect.objectContaining({ id: 'sicyos-angulatus', category: 'plant', koreanName: '가시박' }),
       ]),
     );
-    expect(bundle.officialOccurrences).toHaveLength(5011);
-    expect(bundle.officialOccurrences.filter((record) => record.datasetId === '15022461')).toHaveLength(4780);
+    expect(bundle.officialOccurrences).toHaveLength(7564);
+    expect(bundle.officialOccurrences.filter((record) => record.datasetId === 'RSD_0000000000012894')).toHaveLength(4780);
+    expect(bundle.officialOccurrences.filter((record) => record.datasetId === 'RSD_0000000000012705')).toHaveLength(2553);
     expect(bundle.officialOccurrences).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          id: 'official:15022461:O20200113000746',
-          datasetId: '15022461',
+          id: 'official:RSD_0000000000012894:O20200113000746',
+          datasetId: 'RSD_0000000000012894',
           sourceRecordId: 'O20200113000746',
         }),
         expect.objectContaining({
@@ -86,6 +111,12 @@ describe('demo snapshot import', () => {
           datasetId: 'RSD_0000000000012824',
           doi: '10.22756/ASD.20240000000888',
           snapshotChecksum: expect.stringMatching(/^sha256:/),
+        }),
+        expect.objectContaining({
+          id: 'official:RSD_0000000000012705:53320',
+          datasetId: 'RSD_0000000000012705',
+          sourceRecordId: '53320',
+          observedAt: '2020-10-14T00:00:00.000Z',
         }),
       ]),
     );
@@ -101,6 +132,17 @@ describe('demo snapshot import', () => {
         '애기수영', '털물참새피', '물참새피', '도깨비가지', '양미역취', '서양금혼초', '물여뀌바늘',
       ]),
     );
+    const speciesById = new Map(bundle.species.map((species) => [species.id, species]));
+    const thirdSourceSpecies = new Set(
+      bundle.officialOccurrences
+        .filter((record) => record.datasetId === 'RSD_0000000000012705')
+        .map((record) => record.speciesId),
+    );
+    expect(thirdSourceSpecies).toHaveLength(13);
+    expect([...thirdSourceSpecies].every((speciesId) => {
+      const species = speciesById.get(speciesId);
+      return species?.category === 'plant' && species.actionPolicy === 'report_only' && species.cookingGuidance === undefined;
+    })).toBe(true);
   });
 
   it('runs pnpm demo:data without source credentials and writes the public bundle', () => {
@@ -116,8 +158,9 @@ describe('demo snapshot import', () => {
     expect(JSON.parse(readFileSync(outputPath, 'utf8'))).toEqual(
       expect.objectContaining({
         officialOccurrences: expect.arrayContaining([
-          expect.objectContaining({ datasetId: '15022461' }),
+          expect.objectContaining({ datasetId: 'RSD_0000000000012894' }),
           expect.objectContaining({ datasetId: 'RSD_0000000000012824' }),
+          expect.objectContaining({ datasetId: 'RSD_0000000000012705' }),
         ]),
         habitatAreas: [],
       }),
@@ -157,7 +200,7 @@ describe('demo snapshot import', () => {
 
       const bundle = importDemoSnapshots(directory);
 
-      expect(bundle.officialOccurrences).toHaveLength(5011);
+      expect(bundle.officialOccurrences).toHaveLength(7564);
       expect(bundle.species).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: 'cyprinus-carpio' })]));
     });
   });

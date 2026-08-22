@@ -21,6 +21,7 @@ DOWNLOADS = Path('/Users/hyeonhongchang/Downloads')
 OUTPUT_DIRECTORY = Path(__file__).resolve().parents[1] / 'data' / 'raw' / 'demo'
 WORKBOOK_SNAPSHOT = 'ecosystem-disturbing-organisms-gyeongbuk-2016-2024.json'
 NIE_SNAPSHOT = 'nie-alien-fish-gyeongbuk-2015-2022.json'
+PLANT_SNAPSHOT = 'nie-alien-plants-gyeongbuk-2015-2021.json'
 SPREADSHEET_NS = {
     'm': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main',
     'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
@@ -37,7 +38,7 @@ def normalized_name(path: Path) -> str:
     return unicodedata.normalize('NFC', path.name)
 
 
-def discover_inputs() -> tuple[Path, Path]:
+def discover_inputs() -> tuple[Path, Path, Path]:
     paths = list(DOWNLOADS.rglob('*'))
     workbook = next(
         path
@@ -49,7 +50,12 @@ def discover_inputs() -> tuple[Path, Path]:
         for path in paths
         if path.suffix == '.csv' and '외래어류_2015_2022.csv' in normalized_name(path)
     )
-    return workbook, fish_csv
+    plant_csv = next(
+        path
+        for path in paths
+        if path.suffix == '.csv' and normalized_name(path) == '외래식물_2015_2021.csv'
+    )
+    return workbook, fish_csv, plant_csv
 
 
 def sha256_file(path: Path) -> str:
@@ -124,7 +130,7 @@ def write_snapshot(filename: str, source: dict[str, str], records: list[dict[str
 
 
 def main() -> None:
-    workbook_path, csv_path = discover_inputs()
+    workbook_path, csv_path, plant_csv_path = discover_inputs()
     workbook_rows = [
         row
         for row in xlsx_rows(workbook_path, '생태계교란생물 통합데이터')
@@ -142,16 +148,27 @@ def main() -> None:
             and valid_coordinates(row, '위도', '경도')
             and is_within_gyeongbuk(row, '위도', '경도')
         ]
+    with plant_csv_path.open(encoding='utf-8-sig', newline='') as source_file:
+        plant_labelled_rows = [
+            row
+            for row in csv.DictReader(source_file)
+            if row.get('시도명') == '경상북도' and valid_coordinates(row, '위도', '경도')
+        ]
+    plant_rows = [
+        row
+        for row in plant_labelled_rows
+        if is_within_gyeongbuk(row, '위도', '경도')
+    ]
 
     write_snapshot(
         WORKBOOK_SNAPSHOT,
         {
-            'datasetId': '15022461',
+            'datasetId': 'RSD_0000000000012894',
             'title': '생태계교란생물 통합데이터 (2016-2024)',
-            'provider': 'Korean Public Data Portal (data.go.kr); original publisher not identified in the supplied workbook',
-            'sourceUrl': 'https://www.data.go.kr/data/15022461/fileData.do',
-            'licence': 'No exact licence was verified from the supplied workbook or its data-description file; review the data.go.kr record before redistribution.',
-            'attribution': 'Korean Public Data Portal dataset 15022461; bounded Gyeongbuk snapshot from the supplied workbook.',
+            'provider': 'National Institute of Ecology (국립생태원)',
+            'sourceUrl': 'https://www.nie-ecobank.kr/rdm/rsrchdoi/selectRsrchDtaDtlVw.do?rsrchDtaId=RSD_0000000000012894',
+            'licence': 'No exact licence was verified from the supplied workbook or the available EcoBank record.',
+            'attribution': 'National Institute of Ecology (국립생태원), 생태계교란생물 통합데이터 (2016-2024).',
             'snapshotFilename': WORKBOOK_SNAPSHOT,
             'sourceFileChecksum': sha256_file(workbook_path),
         },
@@ -187,6 +204,34 @@ def main() -> None:
                 name: sum(1 for row in rejected if row.get('한글보통명') == name)
                 for name in sorted({row.get('한글보통명', '') for row in rejected})
             },
+        },
+    )
+    accepted_plant_names = {
+        '환삼덩굴', '돼지풀', '미국쑥부쟁이', '가시상추', '가시박', '단풍잎돼지풀', '애기수영',
+        '털물참새피', '물참새피', '도깨비가지', '양미역취', '서양금혼초', '물여뀌바늘',
+    }
+    rejected_plants = [row for row in plant_rows if row.get('한글보통명') not in accepted_plant_names]
+    write_snapshot(
+        PLANT_SNAPSHOT,
+        {
+            'datasetId': 'RSD_0000000000012705',
+            'title': '외래식물_2015_2021',
+            'provider': 'National Institute of Ecology (국립생태원)',
+            'sourceUrl': 'https://www.nie-ecobank.kr/rdm/rsrchdoi/selectRsrchDtaDtlVw.do?rsrchDtaId=RSD_0000000000012705',
+            'licence': 'Licence wording was not verified from the supplied source record.',
+            'attribution': 'National Institute of Ecology (국립생태원), 외래식물_2015_2021.',
+            'snapshotFilename': PLANT_SNAPSHOT,
+            'sourceFileChecksum': sha256_file(plant_csv_path),
+        },
+        plant_rows,
+        {
+            'rawGyeongbukLabelledRowsBeforeCategoryFilter': len(plant_labelled_rows),
+            'rawFilteredRows': len(plant_rows),
+            'filter': '시도명=경상북도; valid WGS84 coordinates; committed Gyeongbuk boundary',
+            'geographicOnlyRejections': len(plant_labelled_rows) - len(plant_rows),
+            'publishedRowsAfterCuratedPlantFilter': len(plant_rows) - len(rejected_plants),
+            'rejectedRowsNotInCuratedDisturbanceCatalogue': len(rejected_plants),
+            'rejectedSpeciesCount': len({row.get('한글보통명', '') for row in rejected_plants}),
         },
     )
 

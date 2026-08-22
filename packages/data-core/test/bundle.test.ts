@@ -55,9 +55,19 @@ describe('public bundle writer', () => {
 
         const sources = JSON.parse(readFileSync(join(firstDirectory, 'source-catalog.json'), 'utf8')) as { sources: unknown[] };
         const publicBundle = JSON.parse(readFileSync(join(firstDirectory, 'public-bundle.json'), 'utf8')) as PublicDataBundle;
+        expect(sources.sources).toHaveLength(3);
         expect(sources.sources).toEqual(expect.arrayContaining([
-          expect.objectContaining({ datasetId: '15022461', sourceUrl: expect.any(String), attribution: expect.any(String) }),
+          expect.objectContaining({
+            datasetId: 'RSD_0000000000012894',
+            sourceUrl: 'https://www.nie-ecobank.kr/rdm/rsrchdoi/selectRsrchDtaDtlVw.do?rsrchDtaId=RSD_0000000000012894',
+            attribution: expect.any(String),
+          }),
           expect.objectContaining({ datasetId: 'RSD_0000000000012824', sourceUrl: expect.any(String), attribution: expect.any(String) }),
+          expect.objectContaining({
+            datasetId: 'RSD_0000000000012705',
+            sourceUrl: 'https://www.nie-ecobank.kr/rdm/rsrchdoi/selectRsrchDtaDtlVw.do?rsrchDtaId=RSD_0000000000012705',
+            attribution: expect.any(String),
+          }),
         ]));
         expect(publicBundle.species).toHaveLength(15);
         expect(new Set(publicBundle.species.map((species) => species.id)).size).toBe(15);

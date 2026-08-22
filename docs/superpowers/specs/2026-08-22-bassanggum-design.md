@@ -49,7 +49,7 @@ The initial scope is deliberately limited to invasive **fish** and **plants**. I
 
 | Source | Use in Bassanggum | Ingestion form |
 |---|---|---|
-| National Institute of Ecology EcoBank ecological information, Data.go.kr ID `15022461` | GIS habitat areas, species occurrence frequency, and spatial baseline | Versioned source download; convert SHP/DBF data to normalized GeoJSON |
+| National Institute of Ecology EcoBank ecological information, dataset `RSD_0000000000012894` | GIS habitat areas, species occurrence frequency, and spatial baseline | Versioned source download; convert SHP/DBF data to normalized GeoJSON |
 | National Institute of Ecology natural-environment fish survey points, Data.go.kr ID `15101290` | Official fish observation coordinates, Korean names, scientific names | API adapter and bundled snapshot |
 | National Institute of Ecology natural-environment flora survey points, Data.go.kr ID `15101287` | Official plant observation coordinates, Korean names, scientific names | API adapter and bundled snapshot |
 | Gyeongbuk river information | Human-readable waterbody context for fish areas | Bundled normalized source or adapter |

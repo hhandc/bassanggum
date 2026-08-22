@@ -92,7 +92,7 @@ function scoreForSingleOfficial(observedAt: string | undefined): number | undefi
     officialOccurrences: [
       {
         id: `official-${observedAt ?? 'undated'}`,
-        speciesId: 'lepomis-macrochirus',
+        speciesId: 'sicyos-angulatus',
         evidenceSource: 'official',
         geometry: point,
         ...(observedAt === undefined ? {} : { observedAt }),
@@ -114,42 +114,51 @@ describe('calculateHotspotCells', () => {
 
     const onePerSource = input([
       {
-        id: 'official:15022461:O20200113000746',
-        speciesId: 'lepomis-macrochirus',
+        id: 'official:RSD_0000000000012894:O20200113000746',
+        speciesId: 'sicyos-angulatus',
         evidenceSource: 'official',
         geometry: duplicatePoint,
         observedAt: matchingDate,
         ...sourceMetadata,
-        datasetId: '15022461',
+        datasetId: 'RSD_0000000000012894',
       },
       {
-        id: 'official:RSD_0000000000012824:ALSP_000000000007280',
-        speciesId: 'lepomis-macrochirus',
+        id: 'official:RSD_0000000000012824:cross-source-duplicate',
+        speciesId: 'sicyos-angulatus',
         evidenceSource: 'official',
         geometry: duplicatePoint,
         observedAt: matchingDate,
         ...sourceMetadata,
         datasetId: 'RSD_0000000000012824',
       },
+      {
+        id: 'official:RSD_0000000000012705:plant-duplicate',
+        speciesId: 'sicyos-angulatus',
+        evidenceSource: 'official',
+        geometry: duplicatePoint,
+        observedAt: matchingDate,
+        ...sourceMetadata,
+        datasetId: 'RSD_0000000000012705',
+      },
     ]);
     const sameSourceRepeats = input([
       {
-        id: 'official:15022461:first',
-        speciesId: 'lepomis-macrochirus',
+        id: 'official:RSD_0000000000012894:first',
+        speciesId: 'sicyos-angulatus',
         evidenceSource: 'official',
         geometry: duplicatePoint,
         observedAt: matchingDate,
         ...sourceMetadata,
-        datasetId: '15022461',
+        datasetId: 'RSD_0000000000012894',
       },
       {
-        id: 'official:15022461:second',
-        speciesId: 'lepomis-macrochirus',
+        id: 'official:RSD_0000000000012894:second',
+        speciesId: 'sicyos-angulatus',
         evidenceSource: 'official',
         geometry: duplicatePoint,
         observedAt: matchingDate,
         ...sourceMetadata,
-        datasetId: '15022461',
+        datasetId: 'RSD_0000000000012894',
       },
     ]);
 
@@ -175,14 +184,14 @@ describe('calculateHotspotCells', () => {
     const paired = calculateHotspotCells({
       ...communityInput([]),
       officialOccurrences: [
-        occurrence('official:15022461:precision-a', '15022461', coordinate),
+        occurrence('official:RSD_0000000000012894:precision-a', 'RSD_0000000000012894', coordinate),
         occurrence('official:RSD_0000000000012824:precision-b', 'RSD_0000000000012824', duplicate),
       ],
     })[0];
     const distinct = calculateHotspotCells({
       ...communityInput([]),
       officialOccurrences: [
-        occurrence('official:15022461:nearby-a', '15022461', coordinate),
+        occurrence('official:RSD_0000000000012894:nearby-a', 'RSD_0000000000012894', coordinate),
         occurrence('official:RSD_0000000000012824:nearby-b', 'RSD_0000000000012824', nearby),
       ],
     })[0];

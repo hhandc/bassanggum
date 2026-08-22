@@ -2,11 +2,11 @@ import { createProvenance } from '@bassanggum/data-core';
 import { describe, expect, it } from 'vitest';
 
 const source = {
-  datasetId: '15022461',
+  datasetId: 'RSD_0000000000012894',
   title: 'EcoBank ecological information',
   provider: 'National Institute of Ecology',
-  sourceUrl: 'https://www.data.go.kr/data/15022461',
-  licence: 'KOGL Type 1',
+  sourceUrl: 'https://www.nie-ecobank.kr/rdm/rsrchdoi/selectRsrchDtaDtlVw.do?rsrchDtaId=RSD_0000000000012894',
+  licence: 'No exact licence was verified from the supplied workbook or the available EcoBank record.',
   attribution: 'National Institute of Ecology',
   snapshotFilename: 'test-source.json',
   checksum: 'sha256:example',
@@ -21,9 +21,9 @@ const run = {
 describe('provenance', () => {
   it('retains dataset attribution in normalized provenance', () => {
     expect(createProvenance(source, run, 'eco-42')).toMatchObject({
-      datasetId: '15022461',
+      datasetId: 'RSD_0000000000012894',
       sourceRecordId: 'eco-42',
-      licence: 'KOGL Type 1',
+      licence: 'No exact licence was verified from the supplied workbook or the available EcoBank record.',
     });
   });
 

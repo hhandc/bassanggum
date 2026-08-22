@@ -112,6 +112,10 @@ function sourceValue(row: JsonRecord, canonicalKey: string, sourceKey: string): 
   return row[canonicalKey] ?? row[sourceKey];
 }
 
+function sourceRecordIdFromRow(row: JsonRecord): string | null {
+  return nonEmptyString(row.sourceRecordId ?? row.ID ?? row.OBJECTID ?? row.id);
+}
+
 function speciesDetails(row: JsonRecord): SpeciesDetails | null {
   const koreanName = nonEmptyString(row.koreanName);
   const scientificName = nonEmptyString(row.scientificName);
@@ -158,6 +162,11 @@ function observedAtFromRow(row: JsonRecord): string | null | undefined {
   const observedAt = row.observedAt;
   if (observedAt !== undefined && observedAt !== null && observedAt !== '') {
     return normalizeObservedAt(observedAt);
+  }
+
+  const surveyDate = row['조사일자'];
+  if (surveyDate !== undefined && surveyDate !== null && surveyDate !== '') {
+    return normalizeObservedAt(surveyDate);
   }
 
   const surveyYear = row.surveyYear ?? row['조사연도'];
@@ -231,7 +240,7 @@ export function normalizeOccurrenceRow(
     return null;
   }
 
-  const sourceRecordId = nonEmptyString(sourceValue(row, 'sourceRecordId', row.ID === undefined ? 'id' : 'ID'));
+  const sourceRecordId = sourceRecordIdFromRow(row);
   const details = speciesDetails({
     ...row,
     koreanName: sourceValue(row, 'koreanName', '한글보통명'),
@@ -354,6 +363,7 @@ function speciesFromRow(row: unknown): ObservedSpecies | null {
 export function importDemoSnapshots(inputDirectory: string): PublicDataBundle {
   const disturbance = readSnapshot(join(inputDirectory, 'ecosystem-disturbing-organisms-gyeongbuk-2016-2024.json'));
   const alienFish = readSnapshot(join(inputDirectory, 'nie-alien-fish-gyeongbuk-2015-2022.json'));
+  const alienPlants = readSnapshot(join(inputDirectory, 'nie-alien-plants-gyeongbuk-2015-2021.json'));
   const catalogue = readCatalogSnapshot(join(inputDirectory, 'species-catalog.json'));
   const importRun: ImportRun = {
     id: 'gyeongbuk-no-key-import-v1',
@@ -364,6 +374,7 @@ export function importDemoSnapshots(inputDirectory: string): PublicDataBundle {
   const occurrenceInputs = [
     ...disturbance.records.map((row) => ({ row, source: disturbance.source })),
     ...alienFish.records.map((row) => ({ row, source: alienFish.source })),
+    ...alienPlants.records.map((row) => ({ row, source: alienPlants.source })),
   ].flatMap((input) => {
     const species = speciesFromRow(input.row);
     return species === null ? [] : [{ ...input, species }];
