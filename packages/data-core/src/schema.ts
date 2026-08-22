@@ -274,7 +274,8 @@ const ActionZoneBaseSchema = z
 
 export const ActionZoneSchema = z.discriminatedUnion('kind', [
   ActionZoneBaseSchema.extend({ kind: z.literal('unnamed_cell_cluster') }),
-  ActionZoneBaseSchema.extend({ kind: NamedActionZoneKindSchema, name: NonEmptyString, sourceAttributes: LandformSourceAttributesSchema.optional() }),
+  ActionZoneBaseSchema.extend({ kind: z.enum(['lake', 'river_segment']), name: NonEmptyString, sourceAttributes: LandformSourceAttributesSchema.optional() }),
+  ActionZoneBaseSchema.extend({ kind: z.literal('forest_habitat'), name: NonEmptyString, sourceAttributes: LandformSourceAttributesSchema, provenance: OfficialProvenanceSchema }),
 ]).superRefine((zone, context) => {
   if (new Set(zone.sourceCellIds).size !== zone.sourceCellIds.length) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: 'Action-zone source H3 cell IDs must be unique.' });
@@ -298,7 +299,7 @@ const SuppliedLandformBaseSchema = z
 
 export const SuppliedLandformSchema = z.discriminatedUnion('kind', [
   SuppliedLandformBaseSchema.extend({ kind: z.literal('lake'), geometry: AreaGeometrySchema }),
-  SuppliedLandformBaseSchema.extend({ kind: z.literal('forest_habitat'), geometry: AreaGeometrySchema }),
+  SuppliedLandformBaseSchema.extend({ kind: z.literal('forest_habitat'), geometry: AreaGeometrySchema, provenance: OfficialProvenanceSchema }),
   SuppliedLandformBaseSchema.extend({ kind: z.literal('river_segment'), geometry: LandformLineGeometrySchema }),
 ]);
 

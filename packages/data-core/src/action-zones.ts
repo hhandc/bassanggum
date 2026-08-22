@@ -7,6 +7,7 @@ import {
   type ActionZoneEvidenceCell,
   type AreaGeometry,
   type LandformLineGeometry,
+  type OfficialProvenance,
   type SuppliedLandform,
 } from './schema.js';
 import type { HotspotCell, HotspotContribution } from './hotspots.js';
@@ -20,12 +21,14 @@ type PreparedLandform = {
   geometry: AreaGeometry | RiverReachGeometry;
   bounds: Bounds;
   sourceAttributes?: Record<string, string> | undefined;
+  provenance?: OfficialProvenance | undefined;
 };
 type Bounds = { minLongitude: number; minLatitude: number; maxLongitude: number; maxLatitude: number };
 type ZoneDraft = {
   kind: ActionZone['kind'];
   name?: string;
   sourceAttributes?: Record<string, string> | undefined;
+  provenance?: OfficialProvenance | undefined;
   id: string;
   speciesId: string;
   cells: HotspotCell[];
@@ -69,6 +72,7 @@ export function createActionZones(cells: readonly HotspotCell[], landforms: read
         kind: landform.kind,
         name: landform.name,
         ...(landform.sourceAttributes === undefined ? {} : { sourceAttributes: landform.sourceAttributes }),
+        ...(landform.provenance === undefined ? {} : { provenance: landform.provenance }),
         speciesId,
         cells: matchingCells,
       } satisfies ZoneDraft;
@@ -287,6 +291,7 @@ function createZone(draft: ZoneDraft): ActionZone {
     kind: draft.kind,
     ...(draft.name === undefined ? {} : { name: draft.name }),
     ...(draft.sourceAttributes === undefined ? {} : { sourceAttributes: draft.sourceAttributes }),
+    ...(draft.provenance === undefined ? {} : { provenance: draft.provenance }),
     speciesId: draft.speciesId,
     score: cells.reduce((total, cell) => total + cell.score, 0),
     sourceCellIds: cells.map((cell) => cell.h3Index),

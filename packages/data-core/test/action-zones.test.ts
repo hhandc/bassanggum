@@ -119,6 +119,11 @@ describe('createActionZones', () => {
         name: '침엽수림 · 곰솔',
         kind: 'forest_habitat',
         sourceAttributes: { FRTP_NM: '침엽수림', KOFTR_NM: '곰솔', updatedYear: '2017' },
+        provenance: {
+          datasetId: 'GYEONGBUK-FOREST-HABITAT-47-2025', provider: 'Korea Forest Service', sourceUrl: 'https://map.forest.go.kr/',
+          licence: 'Source licence terms were not supplied with the forest-map shapefiles.', attribution: 'Korea Forest Service',
+          importRunId: 'gyeongbuk-no-key-import-v1', sourceRecordId: '47_1:000001', snapshotChecksum: 'sha256:snapshot', sourceFileChecksum: 'sha256:source',
+        },
         geometry: {
           type: 'Polygon',
           coordinates: [[
@@ -136,6 +141,7 @@ describe('createActionZones', () => {
       kind: 'forest_habitat',
       name: '침엽수림 · 곰솔',
       sourceAttributes: { FRTP_NM: '침엽수림', KOFTR_NM: '곰솔', updatedYear: '2017' },
+      provenance: expect.objectContaining({ datasetId: 'GYEONGBUK-FOREST-HABITAT-47-2025', importRunId: 'gyeongbuk-no-key-import-v1', sourceRecordId: '47_1:000001', sourceFileChecksum: 'sha256:source' }),
     });
   });
 

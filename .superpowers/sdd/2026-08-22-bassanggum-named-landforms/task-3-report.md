@@ -64,3 +64,11 @@ worktree's `vitest/suppress-warnings.cjs` path disappeared mid-run. The file
 existed immediately before each run and focused Vitest commands passed. This
 is an environment/shared-worktree dependency-link race, not a test assertion
 failure. Per parent instruction, no further dependency operations were run.
+
+## Fix round 1
+
+- Forest action zones now preserve public `OfficialProvenance`: dataset URL,
+  licence, attribution, import-run ID, source-record ID, snapshot checksum,
+  and source-component checksum.
+- Forest geometry deduplication canonicalizes ring start, direction, and
+  polygon ordering before comparison.

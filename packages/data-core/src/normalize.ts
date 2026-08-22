@@ -447,7 +447,7 @@ export function normalizeRiverLandformFeature(
 }
 
 /** Forest map categories are sourced habitat context, never official place names. */
-export function normalizeForestLandformFeature(feature: unknown, source: DatasetSource): SuppliedLandform | null {
+export function normalizeForestLandformFeature(feature: unknown, source: DatasetSource, importRun: ImportRun): SuppliedLandform | null {
   if (!isRecord(feature) || !isRecord(feature.properties) || source.datasetId !== 'GYEONGBUK-FOREST-HABITAT-47-2025') {
     return null;
   }
@@ -473,6 +473,7 @@ export function normalizeForestLandformFeature(feature: unknown, source: Dataset
     name: `${forestType} · ${dominantSpecies}`,
     kind: 'forest_habitat',
     sourceAttributes: { FRTP_NM: forestType, KOFTR_NM: dominantSpecies, updatedYear },
+    provenance: createProvenance(source, importRun, sourceRecordId),
     geometry: geometry.data,
   };
 }
@@ -584,7 +585,7 @@ export function importDemoSnapshots(inputDirectory: string): PublicDataBundle {
     return river === null ? [] : [river];
   });
   const forestLandforms = forests.features.flatMap((feature) => {
-    const forest = normalizeForestLandformFeature(feature, forests.source);
+    const forest = normalizeForestLandformFeature(feature, forests.source, importRun);
     return forest === null ? [] : [forest];
   });
 

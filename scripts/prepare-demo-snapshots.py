@@ -648,6 +648,21 @@ def geometry_is_within_gyeongbuk(polygons: list[list[list[list[float]]]]) -> boo
     )
 
 
+def canonical_forest_geometry(geometry: dict[str, object]) -> str:
+    """Canonicalize ring starts/directions and polygon ordering for deduplication."""
+    def ring_key(ring: list[list[float]]) -> tuple[tuple[float, float], ...]:
+        open_ring = [tuple(point) for point in ring[:-1]]
+        candidates = []
+        for direction in (open_ring, list(reversed(open_ring))):
+            start = min(range(len(direction)), key=lambda index: direction[index])
+            candidates.append(tuple(direction[start:] + direction[:start]))
+        return min(candidates)
+    coordinates = geometry['coordinates']
+    polygons = [coordinates] if geometry['type'] == 'Polygon' else coordinates
+    normalized = sorted(tuple(sorted(ring_key(ring) for ring in polygon)) for polygon in polygons)
+    return json.dumps(normalized, ensure_ascii=False, separators=(',', ':'))
+
+
 def write_lake_snapshot(source_directory: Path = LAKE_DIRECTORY, output_directory: Path = OUTPUT_DIRECTORY) -> None:
     """Create named, source-attributed National Base Map lake context for Gyeongbuk.
 
@@ -875,7 +890,7 @@ def write_forest_snapshot(source_directory: Path = FOREST_DIRECTORY, output_dire
                 'type': 'Polygon' if len(polygons) == 1 else 'MultiPolygon',
                 'coordinates': polygons[0] if len(polygons) == 1 else polygons,
             }
-            geometry_key = json.dumps(geometry, ensure_ascii=False, separators=(',', ':'))
+            geometry_key = canonical_forest_geometry(geometry)
             if geometry_key in seen_geometries:
                 deduplicated_overlapping_records += 1
                 continue
