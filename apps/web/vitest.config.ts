@@ -7,7 +7,12 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
-    include: ['test/**/*.test.tsx'],
+    include: ['test/**/*.test.{ts,tsx}'],
     setupFiles: ['./test/setup.ts'],
+    server: {
+      deps: {
+        inline: ['next-intl'],
+      },
+    },
   },
 });

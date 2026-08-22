@@ -1,0 +1,21 @@
+{
+  "home": {
+    "title": "Bassanggum",
+    "description": "Public invasive-species evidence for Gyeongbuk"
+  },
+  "navigation": {
+    "map": "Map",
+    "report": "Report",
+    "events": "Events",
+    "impact": "Impact"
+  },
+  "evidence": {
+    "official": "Official evidence",
+    "communityVerified": "Community-verified evidence",
+    "emerging": "Emerging hotspot",
+    "aiAssisted": "AI-assisted identification"
+  },
+  "errors": {
+    "notFound": "This page is not available."
+  }
+}

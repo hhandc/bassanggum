@@ -1,0 +1,21 @@
+{
+  "home": {
+    "title": "배스안금",
+    "description": "경북 외래종 공개 근거 정보"
+  },
+  "navigation": {
+    "map": "지도",
+    "report": "제보",
+    "events": "행사",
+    "impact": "영향"
+  },
+  "evidence": {
+    "official": "공식 근거",
+    "communityVerified": "커뮤니티 검증 근거",
+    "emerging": "새로운 집중 지역",
+    "aiAssisted": "AI 보조 식별"
+  },
+  "errors": {
+    "notFound": "이 페이지를 사용할 수 없습니다."
+  }
+}
