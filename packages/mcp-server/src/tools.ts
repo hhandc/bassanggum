@@ -130,12 +130,11 @@ export function searchOccurrences(bundle: PublicDataBundle, rawInput: z.input<ty
 
 export function getHotspots(bundle: PublicDataBundle, rawInput: z.input<typeof GetHotspotsInput> = {}): QueryResult<Record<string, unknown>> {
   const input = GetHotspotsInput.parse(rawInput);
-  const records = sourceRecords(bundle);
   const items = bundle.actionZones
     .filter((zone) => matchesSpecies(zone, input.speciesId))
     .filter((zone) => input.areaName === undefined || zoneName(zone).toLocaleLowerCase().includes(input.areaName.toLocaleLowerCase()))
     .filter((zone) => input.bbox === undefined || geometryIntersectsBbox(zone.geometry, input.bbox))
-    .map((zone) => hotspotResult(zone, records))
+    .map((zone) => hotspotResult(zone, bundle))
     .filter((zone) => input.minStatus === undefined || statusRank(zone.status) >= statusRank(input.minStatus))
     .sort((left, right) => Number(right.score) - Number(left.score) || String(left.id).localeCompare(String(right.id)));
   return page(items, input, {
@@ -150,8 +149,7 @@ export function getAreaProfile(bundle: PublicDataBundle, rawInput: z.input<typeo
   if (zone === undefined) {
     return notFound('area', areaId);
   }
-  const records = sourceRecords(bundle);
-  const hotspot = hotspotResult(zone, records);
+  const hotspot = hotspotResult(zone, bundle);
   const matchingWaterbodies = bundle.waterbodies.filter((waterbody) => geometryIntersectsGeometry(zone.geometry, waterbody.geometry));
   const restrictions = bundle.restrictedAreas
     .filter((area) => geometryIntersectsGeometry(zone.geometry, area.geometry))
@@ -302,27 +300,39 @@ function sourceProvenanceFrom(values: Array<Provenance | Provenance[] | undefine
   return [...byDataset.values()].sort((left, right) => [left.datasetId, left.sourceUrl].join('\u0000').localeCompare([right.datasetId, right.sourceUrl].join('\u0000')));
 }
 
-function hotspotResult(zone: ActionZone, records: ReturnType<typeof sourceRecords>): Record<string, unknown> & { provenance: Provenance[]; evidenceType: EvidenceType; status: z.infer<typeof StatusSchema> } {
-  const recordById = new Map(records.map((record) => [record.id, record]));
+function hotspotResult(zone: ActionZone, bundle: PublicDataBundle): Record<string, unknown> & { provenance: Provenance[]; evidenceType: EvidenceType; status: z.infer<typeof StatusSchema> } {
+  const recordById = new Map([
+    ...sourceRecords(bundle),
+    ...bundle.verifiedCommunitySignals,
+  ].map((record) => [record.id, record]));
   const contributorIds = zone.evidence.cells.flatMap((cell) => cell.contributingIds);
-  const provenance = uniqueProvenance(contributorIds.flatMap((id) => {
+  const contributors = contributorIds.flatMap((id) => {
     const record = recordById.get(id);
-    return record === undefined ? [] : [provenanceOf(record)];
-  }));
-  const evidenceType: EvidenceType = contributorIds.length > 0 ? 'official' : 'community_verified';
+    return record === undefined ? [] : [record];
+  });
+  const provenance = uniqueProvenance(contributors.flatMap((record) => isCommunityContributor(record) ? [] : [provenanceOf(record)]));
+  const evidenceType = evidenceTypeFor(contributors.map((record) => ({ evidenceType: isCommunityContributor(record) ? 'community_verified' : 'official' })));
+  const status = zone.evidence.cells.reduce<z.infer<typeof StatusSchema>>(
+    (current, cell) => statusRank(cell.status) > statusRank(current) ? cell.status : current,
+    'none',
+  );
   return {
     id: zone.id,
     areaName: zoneName(zone),
     speciesId: zone.speciesId,
     kind: zone.kind,
     score: zone.score,
-    status: statusForScore(zone.score),
+    status,
     sourceCellIds: zone.sourceCellIds,
     evidence: zone.evidence,
     geometry: zone.geometry,
     evidenceType,
     provenance,
   };
+}
+
+function isCommunityContributor(record: ReturnType<typeof sourceRecords>[number] | PublicDataBundle['verifiedCommunitySignals'][number]): record is PublicDataBundle['verifiedCommunitySignals'][number] {
+  return 'publicGeometry' in record && record.evidenceSource === 'community_verified';
 }
 
 function notFound(kind: string, id: string): Record<string, unknown> {
@@ -376,12 +386,6 @@ function eventMatchesDate(event: VerifiedEvent, filter: DateFilter): boolean {
 
 function zoneName(zone: ActionZone): string {
   return 'name' in zone ? zone.name : zone.id;
-}
-
-function statusForScore(score: number): z.infer<typeof StatusSchema> {
-  if (score >= 25) return 'known';
-  if (score >= 10) return 'watch';
-  return 'none';
 }
 
 function statusRank(status: z.infer<typeof StatusSchema>): number {

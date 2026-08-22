@@ -92,10 +92,6 @@ function normalizePublicBundle(bundle: PublicDataBundle): PublicDataBundle {
   } catch (error) {
     throw new Error('Unsafe public bundle: it contains invalid or private fields.', { cause: error });
   }
-  if (parsed.verifiedCommunitySignals.length > 0) {
-    throw new Error('Unsafe public bundle: exact community coordinate points cannot be published.');
-  }
-
   const species = parsed.species
     .map(({ identificationMedia: _identificationMedia, ...record }) => ({
       ...record,

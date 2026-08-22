@@ -214,6 +214,7 @@ export const VerifiedEventSchema = z
   .strict();
 
 const H3CellIdSchema = NonEmptyString;
+const HotspotStatusSchema = z.enum(['known', 'watch', 'emerging', 'none']);
 const PublicEvidenceContributionSchema = z
   .object({
     id: NonEmptyString,
@@ -230,6 +231,7 @@ export const ActionZoneEvidenceCellSchema = z
   .object({
     h3Index: H3CellIdSchema,
     score: z.number().finite(),
+    status: HotspotStatusSchema,
     contributingIds: z.array(NonEmptyString),
     officialOccurrences: z.array(PublicEvidenceContributionSchema),
     habitatAreas: z.array(PublicEvidenceContributionSchema),

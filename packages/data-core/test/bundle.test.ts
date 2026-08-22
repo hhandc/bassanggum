@@ -124,6 +124,30 @@ describe('public bundle writer', () => {
     });
   });
 
+  it('publishes verified community signals with public geometry but still rejects private fields', async () => {
+    await withTemporaryDirectory(async (directory) => {
+      const safeBundle = importDemoSnapshots(demoDirectory);
+      const publicSignal = {
+        id: 'community:public:one',
+        speciesId: 'micropterus-salmoides',
+        evidenceSource: 'community_verified' as const,
+        signalType: 'sighting' as const,
+        publicGeometry: { type: 'Point' as const, coordinates: [128.6, 36.57] as [number, number] },
+        verifiedAt: '2026-08-22T00:00:00.000Z',
+      };
+      const privateSignal = {
+        ...publicSignal,
+        id: 'community:private:one',
+        deviceTokenHash: 'private-device-token',
+      };
+
+      await expect(writePublicBundle({ ...safeBundle, verifiedCommunitySignals: [publicSignal] }, directory)).resolves.toBeDefined();
+      expect(readFileSync(join(directory, 'public-bundle.json'), 'utf8')).toContain(publicSignal.id);
+      expect(readFileSync(join(directory, 'public-bundle.json'), 'utf8')).not.toContain('deviceTokenHash');
+      await expect(writePublicBundle({ ...safeBundle, verifiedCommunitySignals: [privateSignal] } as unknown as PublicDataBundle, directory)).rejects.toThrow(/private|unsafe/i);
+    });
+  });
+
   it('emits point-free hotspot and action-zone GeoJSON while retaining source cell traceability', async () => {
     await withTemporaryDirectory(async (directory) => {
       await writePublicBundle(importDemoSnapshots(demoDirectory), directory);

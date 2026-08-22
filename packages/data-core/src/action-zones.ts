@@ -234,6 +234,7 @@ function toPublicEvidence(cell: HotspotCell): ActionZoneEvidenceCell {
   return {
     h3Index: cell.h3Index,
     score: cell.score,
+    status: cell.status,
     contributingIds: [...cell.evidenceBreakdown.contributingIds].sort(),
     officialOccurrences: publicContributions(cell.evidenceBreakdown.officialOccurrences),
     habitatAreas: publicContributions(cell.evidenceBreakdown.habitatAreas),

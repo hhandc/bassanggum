@@ -36,6 +36,48 @@ describe('MCP data queries', () => {
     });
   });
 
+  it('keeps public community hotspot contributors and emerging status distinct from official evidence', () => {
+    const zone = bundle.actionZones[0]!;
+    const signals = ['one', 'two', 'three'].map((suffix) => ({
+      id: `community:verified:${suffix}`,
+      speciesId: zone.speciesId,
+      evidenceSource: 'community_verified' as const,
+      signalType: 'sighting' as const,
+      publicGeometry: { type: 'Point' as const, coordinates: [128.6, 36.57] as [number, number] },
+      verifiedAt: '2026-08-22T00:00:00.000Z',
+    }));
+    const communityZone = {
+      ...zone,
+      score: 12,
+      evidence: {
+        cells: [{
+          ...zone.evidence.cells[0]!,
+          score: 12,
+          status: 'emerging',
+          contributingIds: signals.map((signal) => signal.id),
+          officialOccurrences: [],
+          habitatAreas: [],
+          verifiedCommunitySignals: signals.map((signal) => ({ id: signal.id, weight: 4 })),
+          adjacentCells: [],
+        }],
+      },
+    };
+
+    const result = getHotspots({
+      ...bundle,
+      officialOccurrences: [],
+      habitatAreas: [],
+      verifiedCommunitySignals: signals,
+      actionZones: [communityZone] as typeof bundle.actionZones,
+    }, { speciesId: zone.speciesId });
+
+    expect(result).toMatchObject({
+      evidenceType: 'community_verified',
+      provenance: [],
+      items: [expect.objectContaining({ evidenceType: 'community_verified', provenance: [], status: 'emerging' })],
+    });
+  });
+
   it('never returns an exact community location from occurrence search', () => {
     const result = searchOccurrences({
       ...bundle,
