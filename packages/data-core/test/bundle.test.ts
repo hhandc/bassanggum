@@ -29,7 +29,13 @@ describe('public bundle writer', () => {
   it('writes deterministic source-attributed public files for the complete no-key source scope', async () => {
     await withTemporaryDirectory(async (firstDirectory) => {
       await withTemporaryDirectory(async (secondDirectory) => {
-        const bundle = importDemoSnapshots(demoDirectory);
+        const importedBundle = importDemoSnapshots(demoDirectory);
+        const bundle = {
+          ...importedBundle,
+          species: importedBundle.species.map((species, index) => index === 0
+            ? { ...species, visualTraits: [...(species.visualTraits ?? []), 'Ordinary field text can reference profile maps and media literacy.'] }
+            : species),
+        };
         const first = await writePublicBundle(bundle, firstDirectory);
         const second = await writePublicBundle(bundle, secondDirectory);
 
@@ -56,6 +62,7 @@ describe('public bundle writer', () => {
         expect(publicBundle.species).toHaveLength(15);
         expect(new Set(publicBundle.species.map((species) => species.id)).size).toBe(15);
         expect(readFileSync(join(firstDirectory, 'public-bundle.json'), 'utf8')).not.toContain('identificationMedia');
+        expect(readFileSync(join(firstDirectory, 'public-bundle.json'), 'utf8')).toContain('Ordinary field text can reference profile maps and media literacy.');
         expect(publicBundle.habitatAreas).toEqual([]);
         expect(publicBundle.waterbodies).toEqual([]);
         expect(publicBundle.restrictedAreas).toEqual([]);
@@ -88,10 +95,21 @@ describe('public bundle writer', () => {
         ...safeBundle,
         species: [{ ...safeBundle.species[0]!, visualTraits: ['https://example.com/private-image.jpg'] }],
       } as PublicDataBundle;
+      const separatorUnsafeBundle = {
+        ...safeBundle,
+        species: [{
+          ...safeBundle.species[0]!,
+          visualTraits: [
+            '{"exact_location":"128.599312345,36.571598765","device_token_hash":"private-device-token"}',
+            '{\\"private-geometry\\":\\"exact-coordinate-point\\"}',
+          ],
+        }],
+      } as PublicDataBundle;
 
       await expect(writePublicBundle(unsafeBundle, directory)).rejects.toThrow(/private|unsafe/i);
       await expect(writePublicBundle(serializedUnsafeBundle, directory)).rejects.toThrow(/private|unsafe/i);
       await expect(writePublicBundle(mediaUnsafeBundle, directory)).rejects.toThrow(/private|unsafe/i);
+      await expect(writePublicBundle(separatorUnsafeBundle, directory)).rejects.toThrow(/private|unsafe/i);
       expect(() => readFileSync(join(directory, 'manifest.json'))).toThrow();
     });
   });

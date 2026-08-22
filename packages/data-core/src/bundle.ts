@@ -262,16 +262,9 @@ function sortObject(value: unknown): unknown {
 }
 
 function assertNoPrivateContent(value: unknown): void {
-  const forbiddenKeys = new Set([
-    'exactlocation', 'exactcoordinate', 'exactcoordinates',
-    'privategeometry', 'privatelocation', 'privatecoordinate', 'privatecoordinates',
-    'mediaurl', 'mediaurls', 'mediahash', 'mediahashes', 'identificationmedia',
-    'devicetoken', 'devicetokenhash', 'profile', 'profileid', 'profiletoken', 'report', 'reportid',
-  ]);
-  const forbiddenSerializedContent = /(?:"|\\")(?:(?:exact(?:Location|Coordinates?)|private(?:Geometry|Location|Coordinates?)|media(?:Url|Urls|Hashes?)|identificationMedia|deviceTokenHash|profile(?:Token|Id)?|reportId))(?:"|\\")/i;
   const visit = (item: unknown, path: string): void => {
     if (typeof item === 'string') {
-      if (forbiddenSerializedContent.test(item) || /https?:\/\/[^\s"']+\.(?:avif|gif|jpe?g|mov|mp3|mp4|png|svg|webm|webp)(?:[?#][^\s"']*)?$/i.test(item)) {
+      if (containsForbiddenSerializedKey(item) || /https?:\/\/[^\s"']+\.(?:avif|gif|jpe?g|mov|mp3|mp4|png|svg|webm|webp)(?:[?#][^\s"']*)?$/i.test(item)) {
         throw new Error(`Unsafe private content at ${path}.`);
       }
       return;
@@ -282,7 +275,7 @@ function assertNoPrivateContent(value: unknown): void {
     }
     if (item !== null && typeof item === 'object') {
       for (const [key, entry] of Object.entries(item)) {
-        if (forbiddenKeys.has(key.toLowerCase().replace(/[^a-z0-9]/g, ''))) {
+        if (isForbiddenKey(key)) {
           throw new Error(`Unsafe private field ${path}.${key}.`);
         }
         visit(entry, `${path}.${key}`);
@@ -290,6 +283,44 @@ function assertNoPrivateContent(value: unknown): void {
     }
   };
   visit(value, '$');
+}
+
+const FORBIDDEN_NORMALIZED_KEYS = new Set([
+  'exactlocation', 'exactcoordinate', 'exactcoordinates',
+  'privategeometry', 'privatelocation', 'privatecoordinate', 'privatecoordinates',
+  'mediaurl', 'mediaurls', 'mediahash', 'mediahashes', 'identificationmedia',
+  'devicetoken', 'devicetokenhash', 'profile', 'profileid', 'profiletoken', 'report', 'reportid',
+]);
+
+function isForbiddenKey(key: string): boolean {
+  return FORBIDDEN_NORMALIZED_KEYS.has(normalizeKey(key));
+}
+
+/**
+ * Treat quoted, colon-terminated fragments as JSON-like object keys. This
+ * catches ordinary, JSON-escaped, and separator-varied embedded payloads
+ * without treating prose that merely mentions a sensitive term as unsafe.
+ */
+function containsForbiddenSerializedKey(text: string): boolean {
+  const quotedJsonKey = /(?:^|[\[{,])\s*(?:"|\\")((?:\\.|[^"\\])*)(?:"|\\")\s*:/g;
+  for (const match of text.matchAll(quotedJsonKey)) {
+    if (isForbiddenKey(decodeJsonStringFragment(match[1] ?? ''))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function decodeJsonStringFragment(fragment: string): string {
+  try {
+    return JSON.parse(`"${fragment}"`) as string;
+  } catch {
+    return fragment;
+  }
+}
+
+function normalizeKey(key: string): string {
+  return key.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
 function hash(value: string): string {
