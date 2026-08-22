@@ -20,6 +20,7 @@
     "import:demo": "pnpm run build && node dist/scripts/import-demo.js"
   },
   "dependencies": {
+    "h3-js": "^4.1.0",
     "zod": "^3.25.76"
   }
 }
