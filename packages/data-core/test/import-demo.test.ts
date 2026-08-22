@@ -9,10 +9,10 @@ import { describe, expect, it } from 'vitest';
 
 const demoDirectory = fileURLToPath(new URL('../../../data/raw/demo/', import.meta.url));
 const workspaceRoot = fileURLToPath(new URL('../../../', import.meta.url));
-const kdpaSourceDirectory = '/Users/hyeonhongchang/Downloads/2025_ver';
-const lakeSourceDirectory = '/Users/hyeonhongchang/Downloads/N3A_E0052114';
-const riverSourceDirectory = '/Users/hyeonhongchang/Downloads/N3L_E0020000';
-const forestSourceDirectory = '/Users/hyeonhongchang/Downloads/47';
+const kdpaSourceDirectory = process.env['BASSANGGUM_KDPA_SOURCE'] ?? '/Users/hyeonhongchang/Downloads/2025_ver';
+const lakeSourceDirectory = process.env['BASSANGGUM_LAKE_SOURCE'] ?? '/Users/hyeonhongchang/Downloads/N3A_E0052114';
+const riverSourceDirectory = process.env['BASSANGGUM_RIVER_SOURCE'] ?? '/Users/hyeonhongchang/Downloads/N3L_E0020000';
+const forestSourceDirectory = process.env['BASSANGGUM_FOREST_SOURCE'] ?? '/Users/hyeonhongchang/Downloads/47';
 
 function withCopiedDemoSnapshots(test: (directory: string) => void): void {
   const directory = mkdtempSync(join(tmpdir(), 'bassanggum-demo-'));
