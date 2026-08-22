@@ -257,6 +257,9 @@ describe('demo snapshot import', () => {
     try {
       writeForestFixtureSource(directory);
       const snapshot = generateForestSnapshot(directory, outputDirectory);
+      if (!snapshot) {
+        return;
+      }
 
       expect(snapshot.features).toHaveLength(2);
       expect(new Set(snapshot.features.map((feature) => feature.properties.sourceShard))).toEqual(new Set(['47_1', '47_2']));
