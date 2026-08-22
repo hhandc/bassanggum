@@ -1,0 +1,60 @@
+{
+  "records": [
+    {
+      "id": "lepomis-macrochirus",
+      "category": "fish",
+      "englishName": "Bluegill",
+      "koreanName": "블루길",
+      "scientificName": "Lepomis macrochirus",
+      "visualTraits": [
+        "Deep, laterally compressed body with a dark ear flap.",
+        "Vertical bars are usually visible on the sides."
+      ],
+      "lookAlikes": [
+        "Compare the dark ear flap and vertical bars with native sunfish before reporting."
+      ],
+      "disposalGuidance": {
+        "text": "Follow local authority and event directions; do not release a captured fish elsewhere.",
+        "sourceUrl": "https://www.law.go.kr/"
+      },
+      "actionPolicy": "official_event_only",
+      "cookingGuidance": {
+        "text": "Only consume fish handled and prepared under current local food-safety guidance.",
+        "sourceUrl": "https://www.foodsafetykorea.go.kr/"
+      }
+    },
+    {
+      "id": "sicyos-angulatus",
+      "category": "plant",
+      "englishName": "Bur cucumber",
+      "koreanName": "가시박",
+      "scientificName": "Sicyos angulatus",
+      "visualTraits": [
+        "Fast-growing climbing vine with rough, broad leaves.",
+        "Small prickly fruits form in clusters."
+      ],
+      "lookAlikes": [
+        "Check the clustered prickly fruit and vine before reporting; do not rely on an image alone."
+      ],
+      "disposalGuidance": {
+        "text": "Report the plant and follow local authority guidance before any removal or disposal.",
+        "sourceUrl": "https://www.law.go.kr/"
+      },
+      "actionPolicy": "report_only"
+    }
+  ],
+  "media": [
+    {
+      "speciesId": "lepomis-macrochirus",
+      "url": "https://commons.wikimedia.org/wiki/File:Lepomis_macrochirus.jpg",
+      "credit": "Wikimedia Commons contributors",
+      "licence": "See Wikimedia Commons file page for current licence and attribution"
+    },
+    {
+      "speciesId": "sicyos-angulatus",
+      "url": "https://commons.wikimedia.org/wiki/File:Sicyos_angulatus.jpg",
+      "credit": "Wikimedia Commons contributors",
+      "licence": "See Wikimedia Commons file page for current licence and attribution"
+    }
+  ]
+}

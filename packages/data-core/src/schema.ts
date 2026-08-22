@@ -88,6 +88,32 @@ export const SpeciesSchema = z
     englishName: NonEmptyString.optional(),
     koreanName: NonEmptyString.optional(),
     scientificName: NonEmptyString.optional(),
+    visualTraits: z.array(NonEmptyString).min(1).optional(),
+    lookAlikes: z.array(NonEmptyString).min(1).optional(),
+    disposalGuidance: z
+      .object({ text: NonEmptyString, sourceUrl: z.string().url() })
+      .strict()
+      .optional(),
+    actionPolicy: z.enum(['community_removal', 'official_event_only', 'report_only']).optional(),
+    cookingGuidance: z
+      .object({ text: NonEmptyString, sourceUrl: z.string().url() })
+      .strict()
+      .optional(),
+    identificationMedia: z
+      .array(
+        z
+          .object({
+            speciesId: NonEmptyString,
+            url: z.string().url(),
+            credit: NonEmptyString,
+            licence: NonEmptyString,
+            generated: z.boolean().optional(),
+            supplementary: z.boolean().optional(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .optional(),
   })
   .strict();
 

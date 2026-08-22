@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createProvenance } from './provenance.js';
+import { buildSpeciesCatalog } from './catalog.js';
 import {
   AreaGeometrySchema,
   DatasetSourceSchema,
@@ -253,6 +254,14 @@ function readHabitatSnapshot(path: string): { source: DatasetSource; features: u
   return { source, features: parsed.features };
 }
 
+function readCatalogSnapshot(path: string): { records: unknown[]; media: unknown[] } {
+  const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'));
+  if (!isRecord(parsed) || !Array.isArray(parsed.records) || !Array.isArray(parsed.media)) {
+    throw new Error(`Catalogue snapshot at ${path} must contain records and media arrays.`);
+  }
+  return { records: parsed.records, media: parsed.media };
+}
+
 function verifyPayloadChecksum(source: DatasetSource, payload: unknown, path: string): void {
   const actual = `sha256:${createHash('sha256').update(JSON.stringify(payload)).digest('hex')}`;
   if (source.checksum !== actual) {
@@ -280,6 +289,7 @@ export function importDemoSnapshots(inputDirectory: string): PublicDataBundle {
   const fish = readSnapshot(join(inputDirectory, 'ecobank-fish.json'));
   const flora = readSnapshot(join(inputDirectory, 'ecobank-flora.json'));
   const habitat = readHabitatSnapshot(join(inputDirectory, 'ecobank-habitat.geojson'));
+  const catalogue = readCatalogSnapshot(join(inputDirectory, 'species-catalog.json'));
   const importRun: ImportRun = {
     id: 'demo-import-v1',
     importedAt: '2026-08-22T00:00:00.000Z',
@@ -305,9 +315,11 @@ export function importDemoSnapshots(inputDirectory: string): PublicDataBundle {
   const habitatAreas = habitat.features
     .map((feature) => normalizeHabitatFeature(feature, habitat.source, importRun))
     .filter((record): record is HabitatArea => record !== null);
+  const observedSpeciesIds = new Set(species.keys());
+  const cataloguedSpecies = buildSpeciesCatalog(catalogue.records, catalogue.media).filter((record) => observedSpeciesIds.has(record.id));
 
   return PublicDataBundleSchema.parse({
-    species: [...species.values()].sort((left, right) => left.id.localeCompare(right.id)),
+    species: cataloguedSpecies,
     officialOccurrences: occurrences,
     habitatAreas,
     waterbodies: [],
