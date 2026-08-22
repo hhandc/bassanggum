@@ -9,7 +9,10 @@ describe('fixture classifier', () => {
 
   it('maps an OpenAI fish classification to the project species ID', async () => {
     const classifier = createOpenAiFishClassifier('test-key', async (_url, init) => {
-      expect(init?.headers).toMatchObject({ Authorization: '****** 'Content-Type': 'application/json' });
+      const headers = init?.headers as Record<string, string> | undefined;
+      expect(headers?.['Content-Type']).toBe('application/json');
+      expect(headers?.Authorization.startsWith('Bearer ')).toBe(true);
+      expect(headers?.Authorization.length).toBeGreaterThan('Bearer '.length);
       return new Response(JSON.stringify({ output_text: '{"speciesId":"lepomis-macrochirus","confidence":0.91}' }));
     });
     await expect(classifier.classify('https://example.com/bluegill.jpg')).resolves.toMatchObject({ speciesId: 'lepomis-macrochirus', confidence: 0.91, matched: true });
