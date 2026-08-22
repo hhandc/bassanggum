@@ -83,8 +83,13 @@ describe('public bundle writer', () => {
 
         const sources = JSON.parse(readFileSync(join(firstDirectory, 'source-catalog.json'), 'utf8')) as { sources: unknown[] };
         const publicBundle = JSON.parse(readFileSync(join(firstDirectory, 'public-bundle.json'), 'utf8')) as PublicDataBundle;
-        expect(sources.sources).toHaveLength(3);
+        expect(sources.sources).toHaveLength(4);
         expect(sources.sources).toEqual(expect.arrayContaining([
+          expect.objectContaining({
+            datasetId: 'KDPA-PROTECTED-AREAS-OECM-KR-2025',
+            sourceUrl: 'https://www.kdpa.kr/',
+            attribution: expect.stringContaining('KDPA'),
+          }),
           expect.objectContaining({
             datasetId: 'RSD_0000000000012894',
             sourceUrl: 'https://www.nie-ecobank.kr/rdm/rsrchdoi/selectRsrchDtaDtlVw.do?rsrchDtaId=RSD_0000000000012894',
@@ -103,9 +108,13 @@ describe('public bundle writer', () => {
         expect(readFileSync(join(firstDirectory, 'public-bundle.json'), 'utf8')).toContain('Ordinary field text can reference profile maps and media literacy.');
         expect(publicBundle.habitatAreas).toEqual([]);
         expect(publicBundle.waterbodies).toEqual([]);
-        expect(publicBundle.restrictedAreas).toEqual([]);
+        expect(publicBundle.restrictedAreas).not.toHaveLength(0);
         expect(publicBundle.actionZones.every((zone) => zone.kind === 'unnamed_cell_cluster' && !('name' in zone))).toBe(true);
-        expect(JSON.parse(readFileSync(join(firstDirectory, 'restricted-areas.geojson'), 'utf8'))).toMatchObject({ features: [] });
+        expect(JSON.parse(readFileSync(join(firstDirectory, 'restricted-areas.geojson'), 'utf8'))).toMatchObject({
+          features: expect.arrayContaining([
+            expect.objectContaining({ properties: expect.objectContaining({ datasetId: 'KDPA-PROTECTED-AREAS-OECM-KR-2025' }) }),
+          ]),
+        });
       });
     });
   }, 15_000);

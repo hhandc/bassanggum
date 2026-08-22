@@ -13,6 +13,7 @@ import hashlib
 import json
 import unicodedata
 from pathlib import Path
+from struct import unpack
 from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
@@ -22,6 +23,11 @@ OUTPUT_DIRECTORY = Path(__file__).resolve().parents[1] / 'data' / 'raw' / 'demo'
 WORKBOOK_SNAPSHOT = 'ecosystem-disturbing-organisms-gyeongbuk-2016-2024.json'
 NIE_SNAPSHOT = 'nie-alien-fish-gyeongbuk-2015-2022.json'
 PLANT_SNAPSHOT = 'nie-alien-plants-gyeongbuk-2015-2021.json'
+KDPA_SNAPSHOT = 'kdpa-protected-areas-oecm-gyeongbuk-2025.geojson'
+KDPA_DIRECTORY = DOWNLOADS / '2025_ver'
+KDPA_SHAPEFILE = KDPA_DIRECTORY / 'Protected_areas_OECM_Republic_of_Korea_ver_2025.shp'
+KDPA_DBF = KDPA_SHAPEFILE.with_suffix('.dbf')
+KDPA_PRJ = KDPA_SHAPEFILE.with_suffix('.prj')
 SPREADSHEET_NS = {
     'm': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main',
     'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
@@ -129,6 +135,132 @@ def write_snapshot(filename: str, source: dict[str, str], records: list[dict[str
     )
 
 
+def dbf_rows(path: Path) -> list[dict[str, str]]:
+    """Read the supplied KDPA DBF with the encoding declared in its .cpg file."""
+    with path.open('rb') as source_file:
+        header = source_file.read(32)
+        record_count = unpack('<I', header[4:8])[0]
+        header_length = unpack('<H', header[8:10])[0]
+        record_length = unpack('<H', header[10:12])[0]
+        fields: list[tuple[str, int]] = []
+        while True:
+            field = source_file.read(32)
+            if field[0] == 0x0D:
+                break
+            fields.append((field[:11].split(b'\0', 1)[0].decode('ascii'), field[16]))
+        source_file.seek(header_length)
+        rows: list[dict[str, str]] = []
+        for _ in range(record_count):
+            record = source_file.read(record_length)
+            if record[:1] == b'*':
+                continue
+            offset = 1
+            row: dict[str, str] = {}
+            for name, length in fields:
+                row[name] = record[offset:offset + length].decode('cp949').strip()
+                offset += length
+            rows.append(row)
+    return rows
+
+
+def signed_ring_area(ring: list[list[float]]) -> float:
+    return sum(
+        start[0] * end[1] - end[0] * start[1]
+        for start, end in zip(ring, ring[1:])
+    ) / 2
+
+
+def shp_polygons(path: Path) -> list[list[list[list[float]]]]:
+    """Read WGS84 Polygon records using only the published SHP binary format."""
+    with path.open('rb') as source_file:
+        header = source_file.read(100)
+        if unpack('<i', header[32:36])[0] != 5:
+            raise ValueError('KDPA source must be a Polygon SHP file.')
+        polygons: list[list[list[list[float]]]] = []
+        while record_header := source_file.read(8):
+            content_length = unpack('>i', record_header[4:8])[0] * 2
+            content = source_file.read(content_length)
+            if unpack('<i', content[:4])[0] != 5:
+                raise ValueError('KDPA source contains a non-Polygon record.')
+            part_count, point_count = unpack('<2i', content[36:44])
+            starts = list(unpack(f'<{part_count}i', content[44:44 + part_count * 4]))
+            coordinate_offset = 44 + part_count * 4
+            points = [
+                list(unpack('<2d', content[coordinate_offset + index * 16:coordinate_offset + (index + 1) * 16]))
+                for index in range(point_count)
+            ]
+            starts.append(point_count)
+            rings = [points[start:end] for start, end in zip(starts, starts[1:])]
+            if not rings or any(len(ring) < 4 or ring[0] != ring[-1] for ring in rings):
+                raise ValueError('KDPA source contains an invalid linear ring.')
+            if any(not (-180 <= point[0] <= 180 and -90 <= point[1] <= 90) for ring in rings for point in ring):
+                raise ValueError('KDPA source contains coordinates outside WGS84 bounds.')
+
+            grouped: list[list[list[float]]] = []
+            for ring in rings:
+                if signed_ring_area(ring) < 0 or not grouped:
+                    grouped.append([ring])
+                else:
+                    grouped[-1].append(ring)
+            polygons.append(grouped)
+    return polygons
+
+
+def write_kdpa_snapshot() -> None:
+    if 'WGS_1984' not in KDPA_PRJ.read_text(encoding='ascii'):
+        raise ValueError('KDPA source projection must be WGS84.')
+    rows = dbf_rows(KDPA_DBF)
+    polygons = shp_polygons(KDPA_SHAPEFILE)
+    if len(rows) != len(polygons):
+        raise ValueError('KDPA SHP and DBF record counts differ.')
+
+    features = []
+    for row, polygons_for_record in zip(rows, polygons):
+        if row.get('SUB_LOC') != 'KR-47':
+            continue
+        geometry = {
+            'type': 'Polygon' if len(polygons_for_record) == 1 else 'MultiPolygon',
+            'coordinates': polygons_for_record[0] if len(polygons_for_record) == 1 else polygons_for_record,
+        }
+        features.append({
+            'type': 'Feature',
+            'properties': {
+                'sourceRecordId': row['WDPA_PID'],
+                'name': row['NAME'],
+                'originalName': row['ORIG_NAME'],
+                'designation': row['DESIG'],
+                'subLocation': row['SUB_LOC'],
+            },
+            'geometry': geometry,
+        })
+
+    source = {
+        'datasetId': 'KDPA-PROTECTED-AREAS-OECM-KR-2025',
+        'title': 'KDPA protected areas and OECMs, Republic of Korea (2025)',
+        'provider': 'Korea Database on Protected Areas (KDPA)',
+        'sourceUrl': 'https://www.kdpa.kr/',
+        'licence': 'User-confirmed no-reuse-restriction for the supplied KDPA export.',
+        'attribution': 'Korea Database on Protected Areas (KDPA), Protected areas and OECMs, Republic of Korea, 2025.',
+        'snapshotFilename': KDPA_SNAPSHOT,
+        'sourceFileChecksum': sha256_file(KDPA_SHAPEFILE),
+        'checksum': json_payload_checksum(features),
+    }
+    payload = {
+        'type': 'FeatureCollection',
+        'source': source,
+        'features': features,
+        'audit': {
+            'sourceRecords': len(rows),
+            'publishedRecords': len(features),
+            'filter': 'SUB_LOC=KR-47; Polygon SHP; WGS84 coordinates; KDPA screening overlay only',
+            'limitation': 'KDPA boundaries are safety screening only. An overlap does not change hotspot scores and never authorizes legal removal; an official event or agency determination is required.',
+        },
+    }
+    (OUTPUT_DIRECTORY / KDPA_SNAPSHOT).write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8'
+    )
+
+
 def main() -> None:
     workbook_path, csv_path, plant_csv_path = discover_inputs()
     workbook_rows = [
@@ -178,6 +310,7 @@ def main() -> None:
             'filter': '시도명=경상북도; 분류군명=어류|식물; valid WGS84 coordinates; committed Gyeongbuk boundary',
         },
     )
+    write_kdpa_snapshot()
     accepted_names = {'배스', '블루길'}
     rejected = [row for row in nie_rows if row.get('한글보통명') not in accepted_names]
     write_snapshot(

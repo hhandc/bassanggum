@@ -37,7 +37,34 @@ function rawSnapshot(filename: string): { source: Record<string, unknown>; recor
   };
 }
 
+function rawFeatureSnapshot(filename: string): {
+  source: Record<string, unknown>;
+  features: Array<{ properties: Record<string, unknown>; geometry: { type: string; coordinates: unknown } }>;
+  audit: Record<string, unknown>;
+} {
+  return JSON.parse(readFileSync(join(demoDirectory, filename), 'utf8')) as {
+    source: Record<string, unknown>;
+    features: Array<{ properties: Record<string, unknown>; geometry: { type: string; coordinates: unknown } }>;
+    audit: Record<string, unknown>;
+  };
+}
+
 describe('demo snapshot import', () => {
+  it('keeps only KDPA KR-47 protected-area boundaries with complete source attribution', () => {
+    const snapshot = rawFeatureSnapshot('kdpa-protected-areas-oecm-gyeongbuk-2025.geojson');
+
+    expect(snapshot.features).not.toHaveLength(0);
+    expect(snapshot.features.every((feature) => feature.properties.subLocation === 'KR-47')).toBe(true);
+    expect(snapshot.features.every((feature) => feature.geometry.type === 'Polygon' || feature.geometry.type === 'MultiPolygon')).toBe(true);
+    expect(snapshot.source).toMatchObject({
+      datasetId: 'KDPA-PROTECTED-AREAS-OECM-KR-2025',
+      sourceUrl: 'https://www.kdpa.kr/',
+      attribution: expect.stringContaining('KDPA'),
+      sourceFileChecksum: expect.stringMatching(/^sha256:/),
+    });
+    expect(snapshot.features[0]?.properties.sourceRecordId).toEqual(expect.any(String));
+  });
+
   it('keeps only valid Gyeongbuk fish and plant workbook rows in the bounded source snapshot', () => {
     const snapshot = rawSnapshot('ecosystem-disturbing-organisms-gyeongbuk-2016-2024.json');
 
@@ -92,7 +119,7 @@ describe('demo snapshot import', () => {
     });
   });
 
-  it('imports the three attributed Gyeongbuk source snapshots into the public bundle contract', () => {
+  it('imports the three attributed Gyeongbuk occurrence snapshots and KDPA screening boundaries into the public bundle contract', () => {
     const bundle = importDemoSnapshots(demoDirectory);
 
     expect(bundle.species).toEqual(
@@ -130,7 +157,17 @@ describe('demo snapshot import', () => {
     );
     expect(bundle.habitatAreas).toEqual([]);
     expect(bundle.waterbodies).toEqual([]);
-    expect(bundle.restrictedAreas).toEqual([]);
+    expect(bundle.restrictedAreas).not.toHaveLength(0);
+    expect(bundle.restrictedAreas).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: expect.stringMatching(/^restricted:KDPA-PROTECTED-AREAS-OECM-KR-2025:/),
+        datasetId: 'KDPA-PROTECTED-AREAS-OECM-KR-2025',
+        sourceUrl: 'https://www.kdpa.kr/',
+        attribution: expect.stringContaining('KDPA'),
+        sourceRecordId: expect.any(String),
+        restriction: expect.stringContaining('screening'),
+      }),
+    ]));
     expect(bundle.verifiedCommunitySignals).toEqual([]);
     expect(bundle.verifiedEvents).toEqual([]);
     expect(bundle.species).toHaveLength(15);
@@ -165,10 +202,11 @@ describe('demo snapshot import', () => {
   it('runs pnpm demo:data without source credentials and writes the public bundle', () => {
     const workspaceRoot = fileURLToPath(new URL('../../../', import.meta.url));
     const outputPath = fileURLToPath(new URL('../../../data/normalized/public-bundle.json', import.meta.url));
+    const { NODE_OPTIONS: _vitestWorkerNodeOptions, ...subprocessEnvironment } = process.env;
 
     execFileSync('pnpm', ['demo:data'], {
       cwd: workspaceRoot,
-      env: { ...process.env, CI: 'true' },
+      env: { ...subprocessEnvironment, CI: 'true' },
       stdio: 'pipe',
     });
 
@@ -180,8 +218,25 @@ describe('demo snapshot import', () => {
           expect.objectContaining({ datasetId: 'RSD_0000000000012705' }),
         ]),
         habitatAreas: [],
+        restrictedAreas: expect.arrayContaining([
+          expect.objectContaining({ datasetId: 'KDPA-PROTECTED-AREAS-OECM-KR-2025' }),
+        ]),
       }),
     );
+    expect(JSON.parse(readFileSync(join(workspaceRoot, 'data/normalized/restricted-areas.geojson'), 'utf8'))).toMatchObject({
+      type: 'FeatureCollection',
+      features: expect.arrayContaining([
+        expect.objectContaining({ properties: expect.objectContaining({ datasetId: 'KDPA-PROTECTED-AREAS-OECM-KR-2025' }) }),
+      ]),
+    });
+    expect(JSON.parse(readFileSync(join(workspaceRoot, 'data/normalized/source-catalog.json'), 'utf8'))).toMatchObject({
+      sources: expect.arrayContaining([
+        expect.objectContaining({
+          datasetId: 'KDPA-PROTECTED-AREAS-OECM-KR-2025',
+          sourceUrl: 'https://www.kdpa.kr/',
+        }),
+      ]),
+    });
   }, 15_000);
 
   it('rejects a source snapshot whose records no longer match its declared checksum', () => {
@@ -189,6 +244,19 @@ describe('demo snapshot import', () => {
       const path = join(directory, 'ecosystem-disturbing-organisms-gyeongbuk-2016-2024.json');
       const snapshot = JSON.parse(readFileSync(path, 'utf8')) as { records: Array<Record<string, unknown>> };
       snapshot.records[0]!.longitude = '128.7000';
+      writeFileSync(path, `${JSON.stringify(snapshot)}\n`);
+
+      expect(() => importDemoSnapshots(directory)).toThrow(/checksum/i);
+    });
+  });
+
+  it('rejects a KDPA boundary snapshot whose features no longer match its declared checksum', () => {
+    withCopiedDemoSnapshots((directory) => {
+      const path = join(directory, 'kdpa-protected-areas-oecm-gyeongbuk-2025.geojson');
+      const snapshot = JSON.parse(readFileSync(path, 'utf8')) as {
+        features: Array<{ properties: Record<string, unknown> }>;
+      };
+      snapshot.features[0]!.properties.name = 'tampered KDPA boundary';
       writeFileSync(path, `${JSON.stringify(snapshot)}\n`);
 
       expect(() => importDemoSnapshots(directory)).toThrow(/checksum/i);

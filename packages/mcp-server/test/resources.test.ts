@@ -32,10 +32,23 @@ describe('MCP resources', () => {
   it('publishes source-level attribution in the dataset resource', () => {
     const first = bundle.officialOccurrences[0]!;
     const second = { ...first, id: 'official:fixture:second', sourceRecordId: 'fixture-second' };
-    const resources = createResources({ ...bundle, officialOccurrences: [first, second] });
+    const resources = createResources({ ...bundle, officialOccurrences: [first, second], restrictedAreas: [] });
     const datasets = resources['bassanggum://catalog/datasets']!.datasets as Array<{ sourceRecordId?: string }>;
 
     expect(datasets).toHaveLength(1);
     expect(datasets[0]?.sourceRecordId).toBeUndefined();
+  });
+
+  it('publishes KDPA safety-screening provenance in the dataset resource', () => {
+    const resources = createResources(bundle);
+    const datasets = resources['bassanggum://catalog/datasets']!.datasets as Array<{ datasetId: string; sourceUrl: string; attribution: string }>;
+
+    expect(datasets).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        datasetId: 'KDPA-PROTECTED-AREAS-OECM-KR-2025',
+        sourceUrl: 'https://www.kdpa.kr/',
+        attribution: expect.stringContaining('KDPA'),
+      }),
+    ]));
   });
 });

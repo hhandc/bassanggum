@@ -12,11 +12,13 @@ import {
   OfficialOccurrenceSchema,
   HabitatAreaSchema,
   PublicDataBundleSchema,
+  RestrictedAreaSchema,
   type DatasetSource,
   type HabitatArea,
   type ImportRun,
   type OfficialOccurrence,
   type PublicDataBundle,
+  type RestrictedArea,
   type Species,
 } from './schema.js';
 
@@ -319,6 +321,38 @@ export function normalizeHabitatFeature(
   return parsed.success ? parsed.data : null;
 }
 
+/**
+ * KDPA administrative code KR-47 is the authoritative geographic filter.
+ * This conservative overlay is informational safety screening only: it never
+ * enters hotspot scoring and does not grant any removal permission.
+ */
+export function normalizeRestrictedAreaFeature(
+  feature: unknown,
+  source: DatasetSource,
+  importRun: ImportRun,
+): RestrictedArea | null {
+  if (!isRecord(feature) || !isRecord(feature.properties) || !validatedMetadata(source, importRun)) {
+    return null;
+  }
+
+  const sourceRecordId = nonEmptyString(feature.properties.sourceRecordId);
+  const name = nonEmptyString(feature.properties.name);
+  const subLocation = nonEmptyString(feature.properties.subLocation);
+  const geometry = AreaGeometrySchema.safeParse(feature.geometry);
+  if (sourceRecordId === null || name === null || subLocation !== 'KR-47' || !geometry.success) {
+    return null;
+  }
+
+  const parsed = RestrictedAreaSchema.safeParse({
+    id: `restricted:${source.datasetId}:${sourceRecordId}`,
+    name,
+    geometry: geometry.data,
+    restriction: 'KDPA protected-area/OECM safety screening only; overlap requires an official event or agency determination and does not authorize removal.',
+    ...createProvenance(source, importRun, sourceRecordId),
+  });
+  return parsed.success ? parsed.data : null;
+}
+
 function readSnapshot(path: string): { source: DatasetSource; records: unknown[] } {
   const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'));
   if (!isRecord(parsed) || !Array.isArray(parsed.records)) {
@@ -378,6 +412,7 @@ export function importDemoSnapshots(inputDirectory: string): PublicDataBundle {
   const disturbance = readSnapshot(join(inputDirectory, 'ecosystem-disturbing-organisms-gyeongbuk-2016-2024.json'));
   const alienFish = readSnapshot(join(inputDirectory, 'nie-alien-fish-gyeongbuk-2015-2022.json'));
   const alienPlants = readSnapshot(join(inputDirectory, 'nie-alien-plants-gyeongbuk-2015-2021.json'));
+  const kdpaBoundaries = readHabitatSnapshot(join(inputDirectory, 'kdpa-protected-areas-oecm-gyeongbuk-2025.geojson'));
   const catalogue = readCatalogSnapshot(join(inputDirectory, 'species-catalog.json'));
   const importRun: ImportRun = {
     id: 'gyeongbuk-no-key-import-v1',
@@ -403,13 +438,17 @@ export function importDemoSnapshots(inputDirectory: string): PublicDataBundle {
     }
   }
   const cataloguedSpecies = buildSpeciesCatalog(catalogue.records, catalogue.media).filter((record) => observedSpeciesIds.has(record.id));
+  const restrictedAreas = kdpaBoundaries.features.flatMap((feature) => {
+    const area = normalizeRestrictedAreaFeature(feature, kdpaBoundaries.source, importRun);
+    return area === null ? [] : [area];
+  });
 
   return PublicDataBundleSchema.parse({
     species: cataloguedSpecies,
     officialOccurrences: occurrences,
     habitatAreas: [],
     waterbodies: [],
-    restrictedAreas: [],
+    restrictedAreas,
     verifiedCommunitySignals: [],
     verifiedEvents: [],
     actionZones: createActionZones(
