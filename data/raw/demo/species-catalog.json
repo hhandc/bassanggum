@@ -60,6 +60,102 @@
         "sourceUrl": "https://www.law.go.kr/"
       },
       "actionPolicy": "report_only"
+    },
+    {
+      "id": "humulus-japonicus",
+      "category": "plant",
+      "englishName": "Japanese hop",
+      "koreanName": "환삼덩굴",
+      "scientificName": "Humulus japonicus",
+      "actionPolicy": "report_only"
+    },
+    {
+      "id": "ambrosia-artemisiifolia",
+      "category": "plant",
+      "englishName": "Common ragweed",
+      "koreanName": "돼지풀",
+      "scientificName": "Ambrosia artemisiifolia",
+      "actionPolicy": "report_only"
+    },
+    {
+      "id": "aster-pilosus",
+      "category": "plant",
+      "englishName": "White heath aster",
+      "koreanName": "미국쑥부쟁이",
+      "scientificName": "Aster pilosus",
+      "actionPolicy": "report_only"
+    },
+    {
+      "id": "lactuca-scariola",
+      "category": "plant",
+      "englishName": "Prickly lettuce",
+      "koreanName": "가시상추",
+      "scientificName": "Lactuca scariola",
+      "actionPolicy": "report_only"
+    },
+    {
+      "id": "ambrosia-trifida",
+      "category": "plant",
+      "englishName": "Giant ragweed",
+      "koreanName": "단풍잎돼지풀",
+      "scientificName": "Ambrosia trifida",
+      "actionPolicy": "report_only"
+    },
+    {
+      "id": "rumex-acetosella",
+      "category": "plant",
+      "englishName": "Sheep sorrel",
+      "koreanName": "애기수영",
+      "scientificName": "Rumex acetosella",
+      "actionPolicy": "report_only"
+    },
+    {
+      "id": "paspalum-distichum-var-indutum",
+      "category": "plant",
+      "englishName": "Hairy knotgrass",
+      "koreanName": "털물참새피",
+      "scientificName": "Paspalum distichum var. indutum",
+      "actionPolicy": "report_only"
+    },
+    {
+      "id": "paspalum-distichum",
+      "category": "plant",
+      "englishName": "Knotgrass",
+      "koreanName": "물참새피",
+      "scientificName": "Paspalum distichum",
+      "actionPolicy": "report_only"
+    },
+    {
+      "id": "solanum-carolinense",
+      "category": "plant",
+      "englishName": "Carolina horsenettle",
+      "koreanName": "도깨비가지",
+      "scientificName": "Solanum carolinense",
+      "actionPolicy": "report_only"
+    },
+    {
+      "id": "solidago-altissima",
+      "category": "plant",
+      "englishName": "Tall goldenrod",
+      "koreanName": "양미역취",
+      "scientificName": "Solidago altissima",
+      "actionPolicy": "report_only"
+    },
+    {
+      "id": "hypochaeris-radicata",
+      "category": "plant",
+      "englishName": "Catsear",
+      "koreanName": "서양금혼초",
+      "scientificName": "Hypochaeris radicata",
+      "actionPolicy": "report_only"
+    },
+    {
+      "id": "ludwigia-peploides",
+      "category": "plant",
+      "englishName": "Floating primrose-willow",
+      "koreanName": "물여뀌바늘",
+      "scientificName": "Ludwigia peploides",
+      "actionPolicy": "report_only"
     }
   ],
   "media": [

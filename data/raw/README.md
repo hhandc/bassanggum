@@ -7,8 +7,8 @@ The imported records are source snapshots, not official API exports.
 
 | Snapshot | Source and publisher | Coverage and exact filter | Integrity |
 | --- | --- | --- | --- |
-| `ecosystem-disturbing-organisms-gyeongbuk-2016-2024.json` | [data.go.kr dataset 15022461](https://www.data.go.kr/data/15022461/fileData.do), supplied ecosystem-disturbing-organism workbook. The original publisher is not identified in the supplied workbook or its data-description workbook. | 2016–2024; `시도명=경상북도`, `분류군명=어류|식물`, valid WGS84 coordinates. 4,780 retained source rows. | Full supplied workbook: `sha256:090f97e42d3157cb37b4cb68a1d548f03387f3d2f77c27af10c9704fe6c570f9`; committed snapshot file: `sha256:d6fea5a54c5827e494631c26f8d4f1a462aaebcf272b6554fefdfd2f8e41dddb`. |
-| `nie-alien-fish-gyeongbuk-2015-2022.json` | National Institute of Ecology (국립생태원), [외래생물_2015_2022 record](https://www.nie-ecobank.kr/rdm/rsrchdoi/selectRsrchDtaDtlVw.do?rsrchDtaId=RSD_0000000000012824), dataset `RSD_0000000000012824`, DOI `10.22756/ASD.20240000000888`, published 2024-09-20. | 2015–2022; `시도명=경상북도`, valid WGS84 coordinates. 251 retained source rows. | UTF-8-sig supplied CSV: `sha256:f606443c122380949f9785876b60c48762f88e3f4cf8c8e6101f9eceb5628558`; committed snapshot file: `sha256:2c6038dc1243d0c53f58a35ed32f34432e23ec4c52bbc1bce537f8c5453dc878`. |
+| `ecosystem-disturbing-organisms-gyeongbuk-2016-2024.json` | [data.go.kr dataset 15022461](https://www.data.go.kr/data/15022461/fileData.do), supplied ecosystem-disturbing-organism workbook. The original publisher is not identified in the supplied workbook or its data-description workbook. | 2016–2024; `시도명=경상북도`, `분류군명=어류|식물`, valid WGS84 coordinates, and the committed Gyeongbuk boundary. 4,780 retained source rows. | Full supplied workbook: `sha256:090f97e42d3157cb37b4cb68a1d548f03387f3d2f77c27af10c9704fe6c570f9`; committed snapshot file: `sha256:f883c7cdec84a9efe7bd4e3ee9f1bc4a984691d228e087932ba1a516dc14800d`. |
+| `nie-alien-fish-gyeongbuk-2015-2022.json` | National Institute of Ecology (국립생태원), [외래생물_2015_2022 record](https://www.nie-ecobank.kr/rdm/rsrchdoi/selectRsrchDtaDtlVw.do?rsrchDtaId=RSD_0000000000012824), dataset `RSD_0000000000012824`, DOI `10.22756/ASD.20240000000888`, published 2024-09-20. | 2015–2022; `시도명=경상북도`, valid WGS84 coordinates, and the committed Gyeongbuk boundary. 251 retained source rows. | UTF-8-sig supplied CSV: `sha256:f606443c122380949f9785876b60c48762f88e3f4cf8c8e6101f9eceb5628558`; committed snapshot file: `sha256:a0420fc342014bffd779cef05627ca9b3da1a7d47ce1a901da0af97546a66678`. |
 
 ## Licence and attribution
 
@@ -28,19 +28,26 @@ identifier in `sourceRecordId` and has a stable
 ## Scope and audit
 
 There are no habitat polygons in either source, so the no-key public bundle
-always has an empty `habitatAreas` array. The catalogue is deliberately narrow:
-the workbook publishes 898 reviewed records (195 bass, 128 bluegill, and 575
-bur cucumber) from its 4,780 source rows. The NIE snapshot preserves all 251
-Gyeongbuk fish rows but publishes only its 231 reviewed ecological-disturbance
-fish records (145 bass and 86 bluegill). Its audit block records the 20 rejected
+always has an empty `habitatAreas` array. The workbook publishes all 4,780
+source rows across its 15 reviewed fish/plant species. Bass and bluegill have
+`official_event_only` policies; each of the 13 plants has `report_only` and no
+unverified removal, cooking, disposal, or identification-card claim. The NIE
+snapshot preserves all 251 Gyeongbuk fish rows but publishes only its 231
+catalogue-confirmed bass/bluegill rows. Its audit block records the 20 rejected
 rows: 18 crucian carp (`떡붕어`) and 2 carp (`잉어`). Those fish are survey
 evidence only, not removal, bounty, or cooking targets.
 
 When a matching bass or bluegill observation appears in both sources with the
 same normalized species, survey date/year, and coordinate, both provenance
-records remain in the bundle. The hotspot scorer pairs the cross-source match
-only for scoring so the duplicate cannot inflate a hotspot. Repeated records
-within one source remain distinct evidence.
+records remain in the bundle. The hotspot scorer rounds each WGS84 longitude
+and latitude to six decimal places (about 0.11 m) before pairing only
+cross-source matches; points separated by at least one six-decimal unit remain
+distinct. Repeated records within one source remain distinct evidence.
+
+The committed boundary requires both the exact `경상북도` label and a point
+inside the local polygon. Its southeast coastal segment was corrected to include
+the supplied Gyeongju points that the original coarse segment excluded; no
+source rows are rejected solely by the geographic gate after that correction.
 
 ## Regeneration and integrity
 

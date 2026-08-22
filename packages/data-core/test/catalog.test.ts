@@ -82,4 +82,26 @@ describe('species catalogue', () => {
   it('does not accept generated imagery as the only identification reference', () => {
     expect(() => buildSpeciesCatalog(records.slice(0, 1), [{ ...media[0]!, generated: true, supplementary: true }])).toThrow(/generated/i);
   });
+
+  it('allows a reviewed report-only species without unverified identification media or guidance', () => {
+    const catalogue = buildSpeciesCatalog(
+      [
+        {
+          id: 'ambrosia-artemisiifolia',
+          category: 'plant',
+          englishName: 'Common ragweed',
+          koreanName: '돼지풀',
+          scientificName: 'Ambrosia artemisiifolia',
+          actionPolicy: 'report_only',
+        },
+      ],
+      [],
+    );
+
+    expect(catalogue).toEqual([
+      expect.objectContaining({ id: 'ambrosia-artemisiifolia', actionPolicy: 'report_only' }),
+    ]);
+    expect(catalogue[0]).not.toHaveProperty('identificationMedia');
+    expect(catalogue[0]).not.toHaveProperty('disposalGuidance');
+  });
 });

@@ -158,6 +158,39 @@ describe('calculateHotspotCells', () => {
     expect(sameSourceRepeats?.evidenceBreakdown.officialOccurrences).toHaveLength(2);
   });
 
+  it('pairs cross-source evidence whose coordinates differ only below six decimal places', () => {
+    const coordinate = [128.349275041, 36.227924959] as [number, number];
+    const duplicate = [128.349275001, 36.227924999] as [number, number];
+    const nearby = [128.3492761, 36.2279249] as [number, number];
+    const occurrence = (id: string, datasetId: string, coordinates: [number, number]) => ({
+      id,
+      speciesId: 'lepomis-macrochirus',
+      evidenceSource: 'official' as const,
+      geometry: { type: 'Point' as const, coordinates },
+      observedAt: '2020-01-01T00:00:00.000Z',
+      ...sourceMetadata,
+      datasetId,
+    });
+
+    const paired = calculateHotspotCells({
+      ...communityInput([]),
+      officialOccurrences: [
+        occurrence('official:15022461:precision-a', '15022461', coordinate),
+        occurrence('official:RSD_0000000000012824:precision-b', 'RSD_0000000000012824', duplicate),
+      ],
+    })[0];
+    const distinct = calculateHotspotCells({
+      ...communityInput([]),
+      officialOccurrences: [
+        occurrence('official:15022461:nearby-a', '15022461', coordinate),
+        occurrence('official:RSD_0000000000012824:nearby-b', 'RSD_0000000000012824', nearby),
+      ],
+    })[0];
+
+    expect(paired?.evidenceBreakdown.officialOccurrences).toHaveLength(1);
+    expect(distinct?.evidenceBreakdown.officialOccurrences).toHaveLength(2);
+  });
+
   it('labels a cell with official evidence and score 25 as known', () => {
     const cell = calculateHotspotCells(knownInput)[0];
 

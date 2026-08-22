@@ -196,7 +196,13 @@ export function officialEvidenceFingerprint(occurrence: OfficialOccurrence): str
   const observedAt = occurrence.observedAt;
   // Undated evidence cannot satisfy the same-date/year requirement, so it is never paired.
   const dateKey = observedAt === undefined ? `undated:${occurrence.id}` : observedAt;
-  return [occurrence.speciesId, dateKey, longitude, latitude].join('\u0000');
+  // Six decimals are approximately 0.11 m: enough to pair harmless source
+  // serialization differences, not clearly distinct nearby observations.
+  return [occurrence.speciesId, dateKey, coordinateFingerprint(longitude), coordinateFingerprint(latitude)].join('\u0000');
+}
+
+function coordinateFingerprint(coordinate: number): string {
+  return (Math.round(coordinate * 1_000_000) / 1_000_000).toFixed(6);
 }
 
 function getDraft(drafts: Map<string, CellDraft>, speciesId: string, h3Index: string): CellDraft {

@@ -11,9 +11,9 @@ const CatalogRecordSchema = z
     englishName: NonEmptyString,
     koreanName: NonEmptyString,
     scientificName: NonEmptyString,
-    visualTraits: z.array(NonEmptyString).min(1),
-    lookAlikes: z.array(NonEmptyString).min(1),
-    disposalGuidance: GuidanceSchema,
+    visualTraits: z.array(NonEmptyString).min(1).optional(),
+    lookAlikes: z.array(NonEmptyString).min(1).optional(),
+    disposalGuidance: GuidanceSchema.optional(),
     actionPolicy: z.enum(['community_removal', 'official_event_only', 'report_only']),
     cookingGuidance: GuidanceSchema.optional(),
   })
@@ -36,8 +36,8 @@ export type IdentificationMedia = z.infer<typeof IdentificationMediaSchema>;
 
 /**
  * Validates curated fish/plant identification content before it is published.
- * Generated imagery can be supplementary, but a licensed non-generated image
- * remains mandatory for each species' identification reference.
+ * A reviewed card may carry licensed media, but catalogue coverage never
+ * implies that an image, disposal method, or cooking advice has been verified.
  */
 export function buildSpeciesCatalog(records: readonly unknown[], media: readonly unknown[]): Species[] {
   const parsedRecords = records.map((record) => CatalogRecordSchema.parse(record));
@@ -58,17 +58,14 @@ export function buildSpeciesCatalog(records: readonly unknown[], media: readonly
       }
 
       const identificationMedia = parsedMedia.filter((image) => image.speciesId === record.id);
-      if (identificationMedia.length === 0) {
-        throw new Error(`Catalogue entry ${record.id} requires a licensed identification image.`);
-      }
       if (identificationMedia.some((image) => image.generated === true && image.supplementary !== true)) {
         throw new Error(`Generated image for ${record.id} must be explicitly supplementary.`);
       }
-      if (!identificationMedia.some((image) => image.generated !== true)) {
+      if (identificationMedia.length > 0 && !identificationMedia.some((image) => image.generated !== true)) {
         throw new Error(`Generated imagery cannot be the sole identification reference for ${record.id}.`);
       }
 
-      return SpeciesSchema.parse({ ...record, identificationMedia });
+      return SpeciesSchema.parse({ ...record, ...(identificationMedia.length === 0 ? {} : { identificationMedia }) });
     })
     .sort((left, right) => left.id.localeCompare(right.id));
 }

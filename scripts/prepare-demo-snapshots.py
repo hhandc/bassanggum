@@ -25,6 +25,12 @@ SPREADSHEET_NS = {
     'm': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main',
     'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
 }
+GYEONGBUK_BOUNDARY = [
+    (127.2, 36.95), (127.45, 36.6), (127.35, 36.05), (127.55, 35.72),
+    (128.15, 35.55), (128.55, 35.55), (128.9, 35.55), (129.63, 35.55),
+    (129.63, 36.15), (129.55, 36.75), (129.5, 37.13), (128.95, 37.25),
+    (128.25, 37.1), (127.9, 37.25), (127.2, 36.95),
+]
 
 
 def normalized_name(path: Path) -> str:
@@ -98,6 +104,17 @@ def valid_coordinates(record: dict[str, str], latitude: str, longitude: str) -> 
     return -90 <= lat <= 90 and -180 <= lng <= 180
 
 
+def is_within_gyeongbuk(record: dict[str, str], latitude: str, longitude: str) -> bool:
+    """Mirror the committed TypeScript boundary gate for snapshot generation."""
+    lat = float(record[latitude])
+    lng = float(record[longitude])
+    inside = False
+    for (start_lng, start_lat), (end_lng, end_lat) in zip(GYEONGBUK_BOUNDARY, GYEONGBUK_BOUNDARY[1:]):
+        if (start_lat > lat) != (end_lat > lat) and lng < (end_lng - start_lng) * (lat - start_lat) / (end_lat - start_lat) + start_lng:
+            inside = not inside
+    return inside
+
+
 def write_snapshot(filename: str, source: dict[str, str], records: list[dict[str, str]], audit: dict[str, object]) -> None:
     source['checksum'] = json_payload_checksum(records)
     payload = {'source': source, 'records': records, 'audit': audit}
@@ -114,13 +131,16 @@ def main() -> None:
         if row.get('시도명') == '경상북도'
         and row.get('분류군명') in {'어류', '식물'}
         and valid_coordinates(row, '위도', '경도')
+        and is_within_gyeongbuk(row, '위도', '경도')
     ]
     nie_rows: list[dict[str, str]]
     with csv_path.open(encoding='utf-8-sig', newline='') as source_file:
         nie_rows = [
             row
             for row in csv.DictReader(source_file)
-            if row.get('시도명') == '경상북도' and valid_coordinates(row, '위도', '경도')
+            if row.get('시도명') == '경상북도'
+            and valid_coordinates(row, '위도', '경도')
+            and is_within_gyeongbuk(row, '위도', '경도')
         ]
 
     write_snapshot(
@@ -138,7 +158,7 @@ def main() -> None:
         workbook_rows,
         {
             'rawFilteredRows': len(workbook_rows),
-            'filter': '시도명=경상북도; 분류군명=어류|식물; valid WGS84 coordinates',
+            'filter': '시도명=경상북도; 분류군명=어류|식물; valid WGS84 coordinates; committed Gyeongbuk boundary',
         },
     )
     accepted_names = {'배스', '블루길'}
@@ -160,7 +180,7 @@ def main() -> None:
         nie_rows,
         {
             'rawFilteredRows': len(nie_rows),
-            'filter': '시도명=경상북도; valid WGS84 coordinates',
+            'filter': '시도명=경상북도; valid WGS84 coordinates; committed Gyeongbuk boundary',
             'publishedRowsAfterCuratedFishFilter': len(nie_rows) - len(rejected),
             'rejectedRowsNotInCuratedDisturbanceCatalogue': len(rejected),
             'rejectedSpeciesCounts': {

@@ -57374,6 +57374,6 @@
   ],
   "audit": {
     "rawFilteredRows": 4780,
-    "filter": "시도명=경상북도; 분류군명=어류|식물; valid WGS84 coordinates"
+    "filter": "시도명=경상북도; 분류군명=어류|식물; valid WGS84 coordinates; committed Gyeongbuk boundary"
   }
 }

@@ -26,10 +26,10 @@ The hackathon demo must be reproducible without an EcoBank API key. It will ther
 
 | Source | MVP use | Required provenance |
 |---|---|---|
-| `한국의 외래생물 분포현황` ecosystem-disturbing-organism integrated workbook (2016–2024) | Gyeongbuk rows where `분류군명` is `어류` or `식물`; primary fish/plant occurrence evidence and the curated removal catalogue | Preserve its source row `ID`, survey year, associated data.go.kr dataset link, file checksum, and the licence/attribution shown with the supplied workbook. |
+| `한국의 외래생물 분포현황` ecosystem-disturbing-organism integrated workbook (2016–2024) | All valid Gyeongbuk rows where `분류군명` is `어류` or `식물`; primary fish/plant occurrence evidence and the complete 15-species source-A catalogue. Each entry has an explicit policy, but only reviewed fish policy may permit official-event handling. | Preserve its source row `ID`, survey year, associated data.go.kr dataset link, file checksum, and the licence/attribution shown with the supplied workbook. |
 | NIE `외래생물_2015_2022` fish CSV | Gyeongbuk fish occurrence evidence for species already confirmed by the curated fish catalogue; it broadens historical coverage without making every alien fish a removal target. | Dataset `RSD_0000000000012824`; DOI `10.22756/ASD.20240000000888`; National Institute of Ecology; [source record](https://www.nie-ecobank.kr/rdm/rsrchdoi/selectRsrchDtaDtlVw.do?rsrchDtaId=RSD_0000000000012824); KOGL terms; UTF-8 CSV filename and checksum. |
 
-The import must retain both source records and their provenance in the public bundle. Before scoring, it must collapse only semantic cross-source duplicates (same normalized species, survey date/year, and coordinate) so duplicate publication does not inflate a hotspot. Fish found only in the broader alien-fish CSV are observation-only until a reviewed catalogue entry explicitly grants a removal policy; they must not appear as bounty targets or receive removal/cooking guidance.
+The import must retain both source records and their provenance in the public bundle. Before scoring, it must collapse only semantic cross-source duplicates (same normalized species, survey date/year, and coordinates rounded deterministically to six decimal places) so duplicate publication does not inflate a hotspot. Fish found only in the broader alien-fish CSV are observation-only until a reviewed catalogue entry explicitly grants a removal policy; they must not appear as bounty targets or receive removal/cooking guidance.
 
 ## Task 10: Import the two no-key source datasets (execute immediately after Task 5)
 
@@ -52,7 +52,7 @@ Create UTF-8 Gyeongbuk-only snapshots from the two supplied files, without alter
 
 - [ ] **Step 3: Implement source adapters and scoring de-duplication**
 
-Parse the workbook-derived snapshot and the UTF-8 NIE CSV snapshot deterministically. Validate coordinates and survey years, map only known fish/plant catalogue species, and preserve each provider/source-record ID. Add a transparent evidence fingerprint used only by the hotspot engine to de-duplicate matching cross-source observations; never erase provenance rows from the bundle or merge their source metadata.
+Parse the workbook-derived snapshot and the UTF-8 NIE CSV snapshot deterministically. Validate both the exact Gyeongbuk label and the committed boundary plus survey years; map all 15 source-A fish/plant catalogue species, while accepting source-B fish only when already confirmed by that catalogue, and preserve each provider/source-record ID. Add a transparent evidence fingerprint used only by the hotspot engine to de-duplicate matching cross-source observations; never erase provenance rows from the bundle or merge their source metadata.
 
 - [ ] **Step 4: Regenerate and verify the no-key bundle**
 
@@ -288,7 +288,7 @@ Expected: FAIL because `buildSpeciesCatalog` is undefined.
 
 - [ ] **Step 3: Implement catalogue assembly**
 
-Merge curated bilingual names, visual traits, look-alikes, source-linked disposal guidance, action policy, and media credit/licence fields with observed source species. Allow cooking guidance only if `category === 'fish'` and `cookingGuidance.sourceUrl` is present. Reject a plant with cooking guidance. Keep generated images out of the catalogue unless explicitly marked supplementary; no generated image may be the sole identification reference.
+Merge curated bilingual names, visual traits, look-alikes, source-linked disposal guidance, action policy, and media credit/licence fields with observed source species. Allow cooking guidance only if `category === 'fish'` and `cookingGuidance.sourceUrl` is present. Reject a plant with cooking guidance. Identification media is optional until a licensed card is verified; if any media is published, keep generated images out unless explicitly marked supplementary, and never let generated media be the sole identification reference.
 
 - [ ] **Step 4: Run tests and regenerate bundle**
 

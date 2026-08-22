@@ -91,6 +91,7 @@ describe('occurrence normalizers', () => {
         longitude: '128.5993',
         latitude: '36.5715',
         observedAt: '2024-06-15',
+        시도명: '경상북도',
       },
       fishSource,
       importRun,
@@ -116,6 +117,24 @@ describe('occurrence normalizers', () => {
           longitude: 126.978,
           latitude: 37.5665,
           observedAt: '2024-06-15',
+        },
+        fishSource,
+        importRun,
+      ),
+    ).toBeNull();
+  });
+
+  it('rejects a Seoul coordinate even when the administrative label says Gyeongbuk', () => {
+    expect(
+      normalizeOccurrenceRow(
+        {
+          sourceRecordId: 'mislabelled-seoul',
+          koreanName: '블루길',
+          scientificName: 'Lepomis macrochirus',
+          longitude: 126.978,
+          latitude: 37.5665,
+          observedAt: '2024-06-15',
+          시도명: '경상북도',
         },
         fishSource,
         importRun,

@@ -2526,7 +2526,7 @@
   ],
   "audit": {
     "rawFilteredRows": 251,
-    "filter": "시도명=경상북도; valid WGS84 coordinates",
+    "filter": "시도명=경상북도; valid WGS84 coordinates; committed Gyeongbuk boundary",
     "publishedRowsAfterCuratedFishFilter": 231,
     "rejectedRowsNotInCuratedDisturbanceCatalogue": 20,
     "rejectedSpeciesCounts": {

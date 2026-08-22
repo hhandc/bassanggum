@@ -35,8 +35,10 @@ export const GYEONGBUK_BOUNDARY: { type: 'Polygon'; coordinates: [BoundaryPositi
       [127.55, 35.72],
       [128.15, 35.55],
       [128.55, 35.55],
-      [128.9, 35.75],
-      [129.46, 35.7],
+      // The southern coastal segment includes supplied Gyeongju observations.
+      // It corrects the initial coarse vertex without adding a third source.
+      [128.9, 35.55],
+      [129.63, 35.55],
       [129.63, 36.15],
       [129.55, 36.75],
       [129.5, 37.13],
@@ -59,12 +61,36 @@ type KnownSpecies = Pick<SpeciesDetails, 'id' | 'category'> & { scientificName: 
 type ObservedSpecies = Omit<SpeciesDetails, 'category'> & { category: 'fish' | 'plant' };
 
 const KNOWN_SPECIES = new Map<string, KnownSpecies>([
+  ['환삼덩굴', { id: 'humulus-japonicus', category: 'plant', scientificName: 'Humulus japonicus', englishName: 'Japanese hop' }],
+  ['humulus japonicus', { id: 'humulus-japonicus', category: 'plant', scientificName: 'Humulus japonicus', englishName: 'Japanese hop' }],
+  ['돼지풀', { id: 'ambrosia-artemisiifolia', category: 'plant', scientificName: 'Ambrosia artemisiifolia', englishName: 'Common ragweed' }],
+  ['ambrosia artemisiifolia', { id: 'ambrosia-artemisiifolia', category: 'plant', scientificName: 'Ambrosia artemisiifolia', englishName: 'Common ragweed' }],
+  ['미국쑥부쟁이', { id: 'aster-pilosus', category: 'plant', scientificName: 'Aster pilosus', englishName: 'White heath aster' }],
+  ['aster pilosus', { id: 'aster-pilosus', category: 'plant', scientificName: 'Aster pilosus', englishName: 'White heath aster' }],
+  ['가시상추', { id: 'lactuca-scariola', category: 'plant', scientificName: 'Lactuca scariola', englishName: 'Prickly lettuce' }],
+  ['lactuca scariola', { id: 'lactuca-scariola', category: 'plant', scientificName: 'Lactuca scariola', englishName: 'Prickly lettuce' }],
   ['배스', { id: 'micropterus-salmoides', category: 'fish', scientificName: 'Micropterus salmoides', englishName: 'Largemouth bass' }],
   ['micropterus salmoides', { id: 'micropterus-salmoides', category: 'fish', scientificName: 'Micropterus salmoides', englishName: 'Largemouth bass' }],
   ['블루길', { id: 'lepomis-macrochirus', category: 'fish', scientificName: 'Lepomis macrochirus', englishName: 'Bluegill' }],
   ['lepomis macrochirus', { id: 'lepomis-macrochirus', category: 'fish', scientificName: 'Lepomis macrochirus', englishName: 'Bluegill' }],
   ['가시박', { id: 'sicyos-angulatus', category: 'plant', scientificName: 'Sicyos angulatus', englishName: 'Bur cucumber' }],
   ['sicyos angulatus', { id: 'sicyos-angulatus', category: 'plant', scientificName: 'Sicyos angulatus', englishName: 'Bur cucumber' }],
+  ['단풍잎돼지풀', { id: 'ambrosia-trifida', category: 'plant', scientificName: 'Ambrosia trifida', englishName: 'Giant ragweed' }],
+  ['ambrosia trifida', { id: 'ambrosia-trifida', category: 'plant', scientificName: 'Ambrosia trifida', englishName: 'Giant ragweed' }],
+  ['애기수영', { id: 'rumex-acetosella', category: 'plant', scientificName: 'Rumex acetosella', englishName: 'Sheep sorrel' }],
+  ['rumex acetosella', { id: 'rumex-acetosella', category: 'plant', scientificName: 'Rumex acetosella', englishName: 'Sheep sorrel' }],
+  ['털물참새피', { id: 'paspalum-distichum-var-indutum', category: 'plant', scientificName: 'Paspalum distichum var. indutum', englishName: 'Hairy knotgrass' }],
+  ['paspalum distichum var. indutum', { id: 'paspalum-distichum-var-indutum', category: 'plant', scientificName: 'Paspalum distichum var. indutum', englishName: 'Hairy knotgrass' }],
+  ['물참새피', { id: 'paspalum-distichum', category: 'plant', scientificName: 'Paspalum distichum', englishName: 'Knotgrass' }],
+  ['paspalum distichum', { id: 'paspalum-distichum', category: 'plant', scientificName: 'Paspalum distichum', englishName: 'Knotgrass' }],
+  ['도깨비가지', { id: 'solanum-carolinense', category: 'plant', scientificName: 'Solanum carolinense', englishName: 'Carolina horsenettle' }],
+  ['solanum carolinense', { id: 'solanum-carolinense', category: 'plant', scientificName: 'Solanum carolinense', englishName: 'Carolina horsenettle' }],
+  ['양미역취', { id: 'solidago-altissima', category: 'plant', scientificName: 'Solidago altissima', englishName: 'Tall goldenrod' }],
+  ['solidago altissima', { id: 'solidago-altissima', category: 'plant', scientificName: 'Solidago altissima', englishName: 'Tall goldenrod' }],
+  ['서양금혼초', { id: 'hypochaeris-radicata', category: 'plant', scientificName: 'Hypochaeris radicata', englishName: 'Catsear' }],
+  ['hypochaeris radicata', { id: 'hypochaeris-radicata', category: 'plant', scientificName: 'Hypochaeris radicata', englishName: 'Catsear' }],
+  ['물여뀌바늘', { id: 'ludwigia-peploides', category: 'plant', scientificName: 'Ludwigia peploides', englishName: 'Floating primrose-willow' }],
+  ['ludwigia peploides', { id: 'ludwigia-peploides', category: 'plant', scientificName: 'Ludwigia peploides', englishName: 'Floating primrose-willow' }],
 ]);
 
 function isRecord(value: unknown): value is JsonRecord {
@@ -223,8 +249,8 @@ export function normalizeOccurrenceRow(
     latitude < -90 ||
     latitude > 90 ||
     observedAt === null ||
-    (administrativeRegion === null && !isWithinGyeongbuk([longitude, latitude])) ||
-    (administrativeRegion !== null && administrativeRegion !== '경상북도')
+    administrativeRegion !== '경상북도' ||
+    !isWithinGyeongbuk([longitude, latitude])
   ) {
     return null;
   }

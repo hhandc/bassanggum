@@ -1,4 +1,4 @@
-import { importDemoSnapshots } from '@bassanggum/data-core';
+import { importDemoSnapshots, isWithinGyeongbuk } from '@bassanggum/data-core';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -39,6 +39,7 @@ describe('demo snapshot import', () => {
     expect(snapshot.records.every((record) => record.시도명 === '경상북도')).toBe(true);
     expect(snapshot.records.every((record) => record.분류군명 === '어류' || record.분류군명 === '식물')).toBe(true);
     expect(snapshot.records.every((record) => Number.isFinite(Number(record.위도)) && Number.isFinite(Number(record.경도)))).toBe(true);
+    expect(snapshot.records.every((record) => isWithinGyeongbuk([Number(record.경도), Number(record.위도)]))).toBe(true);
     expect(snapshot.source.sourceFileChecksum).toBe('sha256:090f97e42d3157cb37b4cb68a1d548f03387f3d2f77c27af10c9704fe6c570f9');
   });
 
@@ -71,7 +72,8 @@ describe('demo snapshot import', () => {
         expect.objectContaining({ id: 'sicyos-angulatus', category: 'plant', koreanName: '가시박' }),
       ]),
     );
-    expect(bundle.officialOccurrences).toHaveLength(1129);
+    expect(bundle.officialOccurrences).toHaveLength(5011);
+    expect(bundle.officialOccurrences.filter((record) => record.datasetId === '15022461')).toHaveLength(4780);
     expect(bundle.officialOccurrences).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -92,6 +94,13 @@ describe('demo snapshot import', () => {
     expect(bundle.restrictedAreas).toEqual([]);
     expect(bundle.verifiedCommunitySignals).toEqual([]);
     expect(bundle.verifiedEvents).toEqual([]);
+    expect(bundle.species).toHaveLength(15);
+    expect(new Set(bundle.species.map((species) => species.koreanName))).toEqual(
+      new Set([
+        '배스', '블루길', '환삼덩굴', '돼지풀', '미국쑥부쟁이', '가시상추', '가시박', '단풍잎돼지풀',
+        '애기수영', '털물참새피', '물참새피', '도깨비가지', '양미역취', '서양금혼초', '물여뀌바늘',
+      ]),
+    );
   });
 
   it('runs pnpm demo:data without source credentials and writes the public bundle', () => {
@@ -148,7 +157,7 @@ describe('demo snapshot import', () => {
 
       const bundle = importDemoSnapshots(directory);
 
-      expect(bundle.officialOccurrences).toHaveLength(1129);
+      expect(bundle.officialOccurrences).toHaveLength(5011);
       expect(bundle.species).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: 'cyprinus-carpio' })]));
     });
   });
