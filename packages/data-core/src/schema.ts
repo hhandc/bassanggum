@@ -12,7 +12,25 @@ export const PointSchema = z
   })
   .strict();
 
-const LinearRingSchema = z.array(PositionSchema).min(4);
+const LinearRingSchema = z
+  .array(PositionSchema)
+  .min(4)
+  .superRefine((ring, context) => {
+    const firstPosition = ring[0];
+    const lastPosition = ring.at(-1);
+
+    if (
+      firstPosition === undefined ||
+      lastPosition === undefined ||
+      firstPosition.length !== lastPosition.length ||
+      firstPosition.some((coordinate, index) => coordinate !== lastPosition[index])
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Linear rings must repeat their first position as their last position.',
+      });
+    }
+  });
 
 export const PolygonSchema = z
   .object({

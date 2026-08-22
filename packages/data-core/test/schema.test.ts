@@ -1,5 +1,6 @@
 import {
   OfficialOccurrenceSchema,
+  PolygonSchema,
   PublicDataBundleSchema,
   SpeciesSchema,
 } from '@bassanggum/data-core';
@@ -51,6 +52,22 @@ describe('normalized public-data schemas', () => {
 
   it('limits species to fish and plant categories', () => {
     expect(() => SpeciesSchema.parse({ id: 'rat', category: 'mammal' })).toThrow();
+  });
+
+  it('rejects a polygon with an unclosed linear ring', () => {
+    expect(() =>
+      PolygonSchema.parse({
+        type: 'Polygon',
+        coordinates: [
+          [
+            [128.5, 36.4],
+            [128.6, 36.4],
+            [128.6, 36.5],
+            [128.5, 36.5],
+          ],
+        ],
+      }),
+    ).toThrow();
   });
 
   it('excludes media and private coordinates from public data bundles', () => {
