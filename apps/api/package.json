@@ -7,13 +7,17 @@
     "build": "tsc --project tsconfig.json",
     "dev": "tsx watch src/index.ts",
     "test": "vitest run --config vitest.config.ts",
-    "db:migrate": "echo 'Database migrations are added in Task 3.'",
-    "db:seed": "echo 'Database seeding is added in Task 3.'"
+    "db:migrate": "drizzle-kit migrate --config drizzle.config.ts",
+    "db:seed": "tsx src/db/seed-cli.ts"
   },
   "dependencies": {
-    "fastify": "^5.2.1"
+    "@bassanggum/data-core": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "fastify": "^5.2.1",
+    "postgres": "^3.4.9"
   },
   "devDependencies": {
+    "drizzle-kit": "^0.31.10",
     "tsx": "^4.19.2"
   }
 }
