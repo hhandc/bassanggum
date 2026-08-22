@@ -14,7 +14,8 @@
     "@bassanggum/data-core": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "fastify": "^5.2.1",
-    "postgres": "^3.4.9"
+    "postgres": "^3.4.9",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "drizzle-kit": "^0.31.10",

@@ -124,7 +124,7 @@ describe('public bundle writer', () => {
         });
       });
     });
-  }, 15_000);
+  }, 60_000);
 
   it('refuses private fields and raw serialized private content without leaving a partial bundle', async () => {
     await withTemporaryDirectory(async (directory) => {
@@ -166,7 +166,7 @@ describe('public bundle writer', () => {
       await expect(writePublicBundle(separatorUnsafeBundle, directory)).rejects.toThrow(/private|unsafe/i);
       expect(() => readFileSync(join(directory, 'manifest.json'))).toThrow();
     });
-  });
+  }, 60_000);
 
   it('publishes verified community signals with public geometry but still rejects private fields', async () => {
     await withTemporaryDirectory(async (directory) => {

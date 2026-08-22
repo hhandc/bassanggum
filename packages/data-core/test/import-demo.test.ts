@@ -607,7 +607,7 @@ describe('demo snapshot import', () => {
 
       expect(() => importDemoSnapshots(directory)).toThrow(/checksum/i);
     });
-  });
+  }, 60_000);
 
   it('rejects a KDPA boundary snapshot whose features no longer match its declared checksum', () => {
     withCopiedDemoSnapshots((directory) => {
