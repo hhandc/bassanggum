@@ -31,6 +31,8 @@ The hackathon demo must be reproducible without an EcoBank API key. It will ther
 
 The import must retain both source records and their provenance in the public bundle. Before scoring, it must collapse only semantic cross-source duplicates (same normalized species, survey date/year, and coordinates rounded deterministically to six decimal places) so duplicate publication does not inflate a hotspot. Fish found only in the broader alien-fish CSV are observation-only until a reviewed catalogue entry explicitly grants a removal policy; they must not appear as bounty targets or receive removal/cooking guidance.
 
+Neither current source supplies authoritative waterbody, forest/habitat, or protected-area geometry. The no-key demo must therefore emit transparent `unnamed_cell_cluster` action zones only; it must not invent named lakes, river segments, forests, restricted areas, or removal permission. The action-zone interface remains landform-capable for a later, separately attributed source or authenticated EcoBank import.
+
 ## Task 10: Import the two no-key source datasets (execute immediately after Task 5)
 
 **Files:**
@@ -355,12 +357,11 @@ git commit -m "feat: calculate transparent invasive species hotspots"
 ## Task 6: Convert cells into named landform action zones
 
 **Files:**
-- Create: `data/raw/demo/waterbodies.geojson`, `data/raw/demo/restricted-areas.geojson`
 - Create: `packages/data-core/src/action-zones.ts`
 - Test: `packages/data-core/test/action-zones.test.ts`
 
 **Interfaces:**
-- Produces `createActionZones(cells, landforms): ActionZone[]`.
+- Produces `createActionZones(cells, landforms = []): ActionZone[]`.
 - `ActionZone.kind` is `lake | river_segment | forest_habitat | unnamed_cell_cluster`.
 
 - [ ] **Step 1: Write failing zone tests**
@@ -381,9 +382,9 @@ Run: `pnpm --filter @bassanggum/data-core test action-zones.test.ts`
 
 Expected: FAIL because zone aggregation is absent.
 
-- [ ] **Step 3: Implement landform-first aggregation**
+- [ ] **Step 3: Implement landform-capable aggregation without adding a third dataset**
 
-Use Turf intersections to associate cell polygons with lake, habitat/forest, and waterbody geometries. Aggregate per-species evidence and scores into an action zone. Split river geometry into deterministic 2 km reaches before aggregation, naming each reach with river name plus ordinal/reach notation. If no reliable landform intersects, union adjacent scored cells into a transparent fallback cluster. Preserve the original cell IDs in every zone for traceability.
+Use Turf intersections to associate supplied lake, habitat/forest, and waterbody geometries with cells, but do not commit geography from any new source. Aggregate per-species evidence and scores into an action zone. Split supplied river geometry into deterministic 2 km reaches before aggregation, naming each reach with river name plus ordinal/reach notation. In the current no-key import, call the function with no landforms and union adjacent scored cells into transparent fallback clusters. Preserve original cell IDs in every zone for traceability. Unit tests may use in-memory geometry fixtures to protect the future landform-capable interface.
 
 - [ ] **Step 4: Run the focused test suite**
 
@@ -394,7 +395,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit action zones**
 
 ```bash
-git add data/raw/demo/waterbodies.geojson data/raw/demo/restricted-areas.geojson packages/data-core/src/action-zones.ts packages/data-core/test/action-zones.test.ts
+git add packages/data-core/src/action-zones.ts packages/data-core/test/action-zones.test.ts
 git commit -m "feat: derive named landform action zones"
 ```
 
