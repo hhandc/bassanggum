@@ -438,9 +438,10 @@ export function normalizeRiverLandformFeature(
     return null;
   }
 
+  const reachNumber = /^.*:reach:(\d+)$/.exec(reachId)?.[1];
   return {
     id: `river:${source.datasetId}:${sourceRecordId}:${reachId}`,
-    name,
+    name: reachNumber === undefined ? name : `${name} — Reach ${Number(reachNumber)}`,
     kind: 'river_segment',
     geometry: geometry.data,
   };
