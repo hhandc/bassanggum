@@ -20,6 +20,51 @@
 - Community data accepted by the engine must already be marked `verified`; exact community coordinates and report media never enter the MCP bundle.
 - Every code task follows test-first development and commits a focused, passing change.
 
+## No-key source decision (current demo)
+
+The hackathon demo must be reproducible without an EcoBank API key. It will therefore use only the following supplied public source files; the authenticated EcoBank sync remains an optional later enhancement.
+
+| Source | MVP use | Required provenance |
+|---|---|---|
+| `한국의 외래생물 분포현황` ecosystem-disturbing-organism integrated workbook (2016–2024) | Gyeongbuk rows where `분류군명` is `어류` or `식물`; primary fish/plant occurrence evidence and the curated removal catalogue | Preserve its source row `ID`, survey year, associated data.go.kr dataset link, file checksum, and the licence/attribution shown with the supplied workbook. |
+| NIE `외래생물_2015_2022` fish CSV | Gyeongbuk fish occurrence evidence for species already confirmed by the curated fish catalogue; it broadens historical coverage without making every alien fish a removal target. | Dataset `RSD_0000000000012824`; DOI `10.22756/ASD.20240000000888`; National Institute of Ecology; [source record](https://www.nie-ecobank.kr/rdm/rsrchdoi/selectRsrchDtaDtlVw.do?rsrchDtaId=RSD_0000000000012824); KOGL terms; UTF-8 CSV filename and checksum. |
+
+The import must retain both source records and their provenance in the public bundle. Before scoring, it must collapse only semantic cross-source duplicates (same normalized species, survey date/year, and coordinate) so duplicate publication does not inflate a hotspot. Fish found only in the broader alien-fish CSV are observation-only until a reviewed catalogue entry explicitly grants a removal policy; they must not appear as bounty targets or receive removal/cooking guidance.
+
+## Task 10: Import the two no-key source datasets (execute immediately after Task 5)
+
+**Files:**
+- Create: committed, checksum-verified Gyeongbuk-only source snapshots under `data/raw/demo/`
+- Modify: `data/raw/README.md`, `packages/data-core/src/normalize.ts`, `packages/data-core/scripts/import-demo.ts`, `packages/data-core/test/normalize.test.ts`, `packages/data-core/test/import-demo.test.ts`
+- Test: source-specific importer and integrity tests
+
+**Interfaces:**
+- `pnpm demo:data` consumes the two committed source snapshots and needs no credential or external download.
+- Every published occurrence keeps an `official:<datasetId>:<sourceRecordId>` ID and full source-specific provenance.
+
+- [ ] **Step 1: Add failing source-import tests**
+
+Assert that the workbook yields only valid Gyeongbuk fish/plant rows; the NIE CSV yields only valid Gyeongbuk catalogue-confirmed fish rows; provenance records the NIE dataset ID, DOI/source URL, provider, KOGL terms, source row ID, and snapshot checksum. Assert that a same-species/same-date/same-coordinate cross-source pair remains traceable in the bundle but is counted once by hotspots.
+
+- [ ] **Step 2: Add attributed, bounded raw snapshots**
+
+Create UTF-8 Gyeongbuk-only snapshots from the two supplied files, without altering source rows. Include a manifest/README table with source URL, DOI where supplied, publisher, licence wording, date coverage, filter, checksums, and a clear statement that source B is an alien-fish survey rather than an automatic removal list. The snapshots must include the actual 2016–2024 Gyeongbuk fish/plant workbook rows and Gyeongbuk CSV rows only; the full unmodified originals remain outside Git.
+
+- [ ] **Step 3: Implement source adapters and scoring de-duplication**
+
+Parse the workbook-derived snapshot and the UTF-8 NIE CSV snapshot deterministically. Validate coordinates and survey years, map only known fish/plant catalogue species, and preserve each provider/source-record ID. Add a transparent evidence fingerprint used only by the hotspot engine to de-duplicate matching cross-source observations; never erase provenance rows from the bundle or merge their source metadata.
+
+- [ ] **Step 4: Regenerate and verify the no-key bundle**
+
+Run `pnpm demo:data`, focused importer/hotspot tests, full test, lint, typecheck, and build. Confirm the output includes both dataset IDs and that no unchecked fish becomes a removal target.
+
+- [ ] **Step 5: Commit the two-source import**
+
+```bash
+git add data/raw packages/data-core/src packages/data-core/scripts packages/data-core/test
+git commit -m "feat: import no-key Gyeongbuk invasive species sources"
+```
+
 ---
 
 ## File Structure
