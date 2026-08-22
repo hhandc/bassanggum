@@ -1,0 +1,13 @@
+{
+  "name": "@bassanggum/mcp-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc --noEmit --project ../../tsconfig.base.json"
+  }
+}

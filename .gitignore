@@ -1,1 +1,6 @@
 .worktrees/
+node_modules/
+.env
+coverage/
+data/normalized/*
+!data/normalized/.gitkeep
