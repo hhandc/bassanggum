@@ -161,21 +161,21 @@
   "media": [
     {
       "speciesId": "micropterus-salmoides",
-      "url": "https://commons.wikimedia.org/w/index.php?title=File:Micropterus_salmoides.jpg&oldid=956389953",
+      "url": "https://commons.wikimedia.org/wiki/Special:FilePath/Micropterus_salmoides.jpg",
       "sourceUrl": "https://commons.wikimedia.org/w/index.php?title=File:Micropterus_salmoides.jpg&oldid=956389953",
       "credit": "Duane Raver, U.S. Fish and Wildlife Service",
       "licence": "Public domain — U.S. federal government work (U.S. Fish and Wildlife Service)"
     },
     {
       "speciesId": "lepomis-macrochirus",
-      "url": "https://commons.wikimedia.org/w/index.php?title=File:Lepomis_macrochirus_01.jpg&oldid=1064258190",
+      "url": "https://commons.wikimedia.org/wiki/Special:FilePath/Lepomis_macrochirus_01.jpg",
       "sourceUrl": "https://commons.wikimedia.org/w/index.php?title=File:Lepomis_macrochirus_01.jpg&oldid=1064258190",
       "credit": "Eric Engbretson, U.S. Fish and Wildlife Service",
       "licence": "Public domain — U.S. federal government work (U.S. Fish and Wildlife Service)"
     },
     {
       "speciesId": "sicyos-angulatus",
-      "url": "https://commons.wikimedia.org/w/index.php?title=File:Sicyos_angulatus_NRCS-002.jpg&oldid=911166599",
+      "url": "https://commons.wikimedia.org/wiki/Special:FilePath/Sicyos_angulatus_NRCS-002.jpg",
       "sourceUrl": "https://commons.wikimedia.org/w/index.php?title=File:Sicyos_angulatus_NRCS-002.jpg&oldid=911166599",
       "credit": "Robert H. Mohlenbrock, USDA Soil Conservation Service",
       "licence": "Public Domain Mark 1.0 (free of known copyright restrictions)"

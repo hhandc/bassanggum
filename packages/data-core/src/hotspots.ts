@@ -1,5 +1,6 @@
 import {
   cellToBoundary,
+  cellToLatLng,
   gridDisk,
   latLngToCell,
   POLYGON_TO_CELLS_FLAGS,
@@ -74,6 +75,12 @@ export type HotspotCell = {
     coordinates: [number, number][][];
   };
 };
+
+/** Public longitude/latitude centre used to summarize an evidence cell on a map. */
+export function hotspotCellCenter(h3Index: string): readonly [longitude: number, latitude: number] {
+  const [latitude, longitude] = cellToLatLng(h3Index);
+  return [longitude, latitude];
+}
 
 type ContributionGroup = keyof Omit<HotspotEvidenceBreakdown, 'contributingIds' | 'points'>;
 

@@ -5,10 +5,14 @@ import { AreaSheet } from '../components/map/AreaSheet.js';
 
 describe('AreaSheet', () => {
   it('shows a selected named bounty zone and its invasive species', () => {
-    render(<AreaSheet area={{ id: 'action-zone:lake:andong', name: 'Andong Lake', kind: 'lake', topSpecies: ['Largemouth bass', 'Bluegill'], restricted: false }} locale="en" onJoin={() => undefined} />);
+    render(<AreaSheet area={{ id: 'action-zone:river:andong', name: 'Nakdong River', kind: 'river_segment', topSpecies: [
+      { id: 'micropterus-salmoides', name: 'Largemouth bass', imageUrl: 'https://example.com/largemouth-bass.jpg' },
+      { id: 'lepomis-macrochirus', name: 'Bluegill' },
+    ], restricted: false }} locale="en" onJoin={() => undefined} />);
 
-    expect(screen.getByRole('heading', { name: 'Andong Lake' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: 'Nakdong River' })).toBeVisible();
     expect(screen.getByText('Largemouth bass')).toBeVisible();
+    expect(screen.getByRole('img', { name: 'Largemouth bass' })).toHaveAttribute('src', 'https://example.com/largemouth-bass.jpg');
     expect(screen.getByRole('button', { name: 'Join bounty' })).toBeVisible();
   });
 

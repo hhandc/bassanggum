@@ -5,7 +5,7 @@ export type SelectedArea = {
   kind: string;
   name: string;
   restricted: boolean;
-  topSpecies: string[];
+  topSpecies: Array<{ id: string; imageUrl?: string; name: string }>;
 };
 
 type AreaSheetProps = {
@@ -28,8 +28,11 @@ export function AreaSheet({ area, locale, onJoin }: AreaSheetProps) {
         <>
           <p style={{ fontSize: 14, margin: '0 0 8px' }}>{isKorean ? '자주 관찰되는 외래종' : 'Common invasive species'}</p>
           {area.topSpecies.length > 0 ? (
-            <ul style={{ display: 'flex', fontSize: 15, fontWeight: 600, gap: 8, listStyle: 'none', margin: '0 0 16px', padding: 0 }}>
-              {area.topSpecies.map((species) => <li key={species}>{species}</li>)}
+            <ul style={{ display: 'grid', fontSize: 15, fontWeight: 600, gap: 8, listStyle: 'none', margin: '0 0 16px', padding: 0 }}>
+              {area.topSpecies.map((species) => <li key={species.id} style={{ alignItems: 'center', display: 'flex', gap: 8 }}>
+                {species.imageUrl !== undefined && <img alt={species.name} height={42} src={species.imageUrl} style={{ borderRadius: 8, objectFit: 'cover' }} width={42} />}
+                <span>{species.name}</span>
+              </li>)}
             </ul>
           ) : <p style={{ fontSize: 15, fontWeight: 600, margin: '0 0 16px' }}>{isKorean ? '공식 종 정보 확인 중' : 'Species information pending'}</p>}
           <button onClick={onJoin} style={{ background: '#0f5f46', border: 0, borderRadius: 12, color: 'white', fontSize: 16, fontWeight: 700, padding: '12px 16px', width: '100%' }} type="button">

@@ -16,12 +16,6 @@ type BassanggumMapProps = {
   locale: 'en' | 'ko';
 };
 
-const speciesNames: Record<string, string> = {
-  'lepomis-macrochirus': 'Bluegill',
-  'micropterus-salmoides': 'Largemouth bass',
-  'sicyos-angulatus': 'Bur cucumber',
-};
-
 export function BassanggumMap({ locale }: BassanggumMapProps) {
   const [layers, setLayers] = useState<MapLayers | null>(null);
   const [selectedArea, setSelectedArea] = useState<SelectedArea | null>(null);
@@ -39,7 +33,11 @@ export function BassanggumMap({ locale }: BassanggumMapProps) {
 
   function selectActionZone(feature: Feature): void {
     const properties = feature.properties ?? {};
-    const species = Array.isArray(properties.topSpecies) ? properties.topSpecies.map(String).map((id) => speciesNames[id] ?? id) : [];
+    const species = Array.isArray(properties.topSpecies) ? properties.topSpecies.flatMap((candidate) => {
+      if (typeof candidate !== 'object' || candidate === null || !('id' in candidate) || !('name' in candidate)) return [];
+      const { id, imageUrl, name } = candidate as { id: unknown; imageUrl?: unknown; name: unknown };
+      return typeof id === 'string' && typeof name === 'string' ? [{ id, name, ...(typeof imageUrl === 'string' ? { imageUrl } : {}) }] : [];
+    }) : [];
     setSelectedArea({ id: String(properties.id), kind: String(properties.kind ?? (isKorean ? '보상 구역' : 'Bounty zone')), name: String(properties.name ?? (isKorean ? '이름 없는 집중 구역' : 'Unnamed hotspot')), restricted: false, topSpecies: species });
   }
 

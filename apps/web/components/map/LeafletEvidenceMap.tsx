@@ -23,10 +23,17 @@ export function LeafletEvidenceMap({ actionZones, restrictedAreas, onActionZoneC
         <ViewportListener onViewportChange={onViewportChange} />
         <LocationFocus location={userLocation} />
         <GeoJSON data={restrictedAreas} key={`restricted-${featureCollectionKey(restrictedAreas)}`} onEachFeature={(feature, layer) => layer.on('click', () => onRestrictedAreaClick(feature))} pathOptions={{ color: '#8e0000', fillColor: '#c62828', fillOpacity: 0.35, weight: 2 }} />
-        <GeoJSON data={actionZones} key={`action-${featureCollectionKey(actionZones)}`} onEachFeature={(feature, layer) => layer.on('click', () => onActionZoneClick(feature))} pathOptions={{ color: '#0d4778', fillColor: '#1769aa', fillOpacity: 0.52, weight: 2 }} />
+        <GeoJSON data={actionZones} key={`action-${featureCollectionKey(actionZones)}`} onEachFeature={(feature, layer) => layer.on('click', () => onActionZoneClick(feature))} style={actionZoneStyle} />
       </MapContainer>
     </div>
   );
+}
+
+function actionZoneStyle(feature?: Feature) {
+  const kind = feature?.properties?.kind;
+  if (kind === 'plant_activity') return { color: '#20663b', fillColor: '#4f9b58', fillOpacity: 0.38, weight: 2 };
+  if (kind === 'mixed_activity') return { color: '#5b3a82', fillColor: '#6f5aa7', fillOpacity: 0.45, weight: 2 };
+  return { color: '#0d4778', fillColor: '#1769aa', fillOpacity: 0.45, weight: 2 };
 }
 
 function featureCollectionKey(collection: FeatureCollection): string {

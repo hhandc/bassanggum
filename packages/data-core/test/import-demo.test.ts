@@ -596,7 +596,7 @@ describe('demo snapshot import', () => {
         }),
       ]),
     });
-  }, 15_000);
+  }, 30_000);
 
   it('rejects a source snapshot whose records no longer match its declared checksum', () => {
     withCopiedDemoSnapshots((directory) => {

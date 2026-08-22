@@ -3,14 +3,18 @@ import { describe, expect, it } from 'vitest';
 import { buildServer } from '../src/server.js';
 
 describe('GET /map/layers', () => {
-  it('returns an action-zone feature with top species but no private coordinate', async () => {
+  it('returns map species with a name and identification image but no private coordinate', async () => {
     const app = buildServer();
-    const body = (await app.inject('/map/layers?category=fish')).json();
+    try {
+      const body = (await app.inject('/map/layers?category=fish')).json();
+      const species = body.actionZones.features.flatMap((feature: { properties: { topSpecies: unknown[] } }) => feature.properties.topSpecies)
+        .find((candidate: unknown) => typeof candidate === 'object' && candidate !== null && 'imageUrl' in candidate);
 
-    expect(body.actionZones.features[0].properties.topSpecies).toBeTruthy();
-    expect(JSON.stringify(body)).not.toContain('private_location');
-
-    await app.close();
+      expect(species).toMatchObject({ id: expect.any(String), name: expect.any(String), imageUrl: expect.stringMatching(/^https:\/\//) });
+      expect(JSON.stringify(body)).not.toContain('private_location');
+    } finally {
+      await app.close();
+    }
   });
 
   it('rejects unsupported layer filters', async () => {
@@ -61,6 +65,29 @@ describe('GET /map/layers', () => {
     const body = (await app.inject('/map/layers')).json();
 
     expect(body.actionZones.features.every((feature: { properties: { evidence: { cells: Array<{ status: string }> } } }) => feature.properties.evidence.cells.some((cell) => cell.status !== 'none'))).toBe(true);
+    await app.close();
+  });
+
+  it('returns compact, approximate activity circles instead of H3 cell boundaries', async () => {
+    const app = buildServer();
+    const body = (await app.inject('/map/layers')).json();
+
+    expect(body.actionZones.features.length).toBeGreaterThan(0);
+    expect(body.actionZones.features.every((feature: { geometry: { type: string; coordinates: unknown }; properties: { kind: string } }) =>
+      feature.geometry.type === 'Polygon' &&
+      everyRingHasAtMost(feature.geometry.coordinates, 33) &&
+      ['fish_activity', 'plant_activity', 'mixed_activity'].includes(feature.properties.kind),
+    )).toBe(true);
+    await app.close();
+  });
+
+  it('labels each activity circle with the invasive species it summarizes', async () => {
+    const app = buildServer();
+    const body = (await app.inject('/map/layers')).json();
+
+    expect(body.actionZones.features.every((feature: { properties: { topSpecies: Array<{ id: string; imageUrl?: string; name: string }> } }) =>
+      feature.properties.topSpecies.length > 0 && feature.properties.topSpecies.every((species) => species.id.length > 0 && species.name.length > 0),
+    )).toBe(true);
     await app.close();
   });
 });

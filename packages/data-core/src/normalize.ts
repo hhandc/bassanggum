@@ -606,6 +606,7 @@ export function importDemoSnapshots(inputDirectory: string): PublicDataBundle {
         verifiedEvents: [],
       }),
       [...lakeLandforms, ...riverLandforms, ...forestLandforms],
+      new Map(cataloguedSpecies.map((species) => [species.id, species.category] as const)),
     ),
   });
 }

@@ -1,6 +1,8 @@
-import type { PublicDataBundle } from '@bassanggum/data-core';
+import { hotspotCellCenter, type PublicDataBundle } from '@bassanggum/data-core';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+
+import { publicAreaId } from '../area-id.js';
 
 const MapLayersQuerySchema = z.object({
   bbox: z.string().optional().refine((value) => value === undefined || parseViewportBounds(value) !== null),
@@ -11,6 +13,17 @@ const MapLayersQuerySchema = z.object({
 });
 
 type ViewportBounds = readonly [west: number, south: number, east: number, north: number];
+type Position = readonly [longitude: number, latitude: number];
+type ActivityCategory = 'fish' | 'plant';
+type ActivityCell = PublicDataBundle['actionZones'][number]['evidence']['cells'][number];
+type ActivityCircle = {
+  category: ActivityCategory;
+  center: Position;
+  cells: ActivityCell[];
+  radiusMetres: number;
+  sourceZoneIds: string[];
+  speciesScores: Map<string, number>;
+};
 
 export function registerMapRoutes(app: FastifyInstance, bundle: PublicDataBundle): void {
   app.get('/map/layers', (request, reply) => {
@@ -23,13 +36,13 @@ export function registerMapRoutes(app: FastifyInstance, bundle: PublicDataBundle
     if (parsedViewportBounds === null) return reply.code(400).send({ status: 'invalid_request' });
     const viewportBounds = parsedViewportBounds;
     const allowedSpecies = new Set(bundle.species.filter((species) => query.category === undefined || species.category === query.category).map((species) => species.id));
-    const features = bundle.actionZones
+    const matchingZones = bundle.actionZones
       .filter((zone) => zone.evidence.cells.some((cell) => cell.status !== 'none'))
       .filter((zone) => query.speciesId === undefined || zone.speciesId === query.speciesId)
       .filter((zone) => query.category === undefined || allowedSpecies.has(zone.speciesId))
-      .filter((zone) => query.evidence === undefined || hasEvidence(zone.evidence.cells, query.evidence))
-      .filter((zone) => viewportBounds === undefined || geometryIntersectsBounds(zone.geometry, viewportBounds))
-      .map((zone) => ({ type: 'Feature', geometry: zone.geometry, properties: { id: zone.id, kind: zone.kind, name: 'name' in zone ? zone.name : undefined, topSpecies: [zone.speciesId], evidence: zone.evidence } }));
+      .filter((zone) => query.evidence === undefined || hasEvidence(zone.evidence.cells, query.evidence));
+    const features = actionZoneFeatures(matchingZones, bundle)
+      .filter((feature) => viewportBounds === undefined || geometryIntersectsBounds(feature.geometry, viewportBounds));
     const restrictedFeatures = bundle.restrictedAreas
       .filter((area) => viewportBounds === undefined || geometryIntersectsBounds(area.geometry, viewportBounds))
       .map((area) => ({
@@ -42,6 +55,137 @@ export function registerMapRoutes(app: FastifyInstance, bundle: PublicDataBundle
       restrictedAreas: { type: 'FeatureCollection', features: restrictedFeatures },
     };
   });
+}
+
+function actionZoneFeatures(zones: PublicDataBundle['actionZones'], bundle: PublicDataBundle) {
+  return mergeNearbyActivities(activityCircles(zones, bundle)).map((activity) => {
+    const speciesScores = [...activity.speciesScores.entries()];
+    const kind = activity.categories.size === 2 ? 'mixed_activity' : `${activity.categories.values().next().value}_activity`;
+    return {
+      type: 'Feature' as const,
+      geometry: circleGeometry(activity.center, activity.radiusMetres),
+      properties: {
+        id: publicAreaId(activity.sourceZoneIds.sort()[0]!),
+        kind,
+        name: activityName(kind),
+        topSpecies: speciesScores
+          .map(([speciesId, score]) => mapSpecies(speciesId, score, bundle))
+          .sort((left, right) => right.score - left.score || left.id.localeCompare(right.id)),
+        evidence: { cells: activity.cells },
+      },
+    };
+  });
+}
+
+function activityCircles(zones: PublicDataBundle['actionZones'], bundle: PublicDataBundle): ActivityCircle[] {
+  return zones.flatMap((zone) => {
+    const category = bundle.species.find((species) => species.id === zone.speciesId)?.category;
+    if (category !== 'fish' && category !== 'plant') return [];
+    return [circleForZone(category, zone)];
+  });
+}
+
+function circleForZone(category: ActivityCategory, zone: PublicDataBundle['actionZones'][number]): ActivityCircle {
+  const positions = zone.evidence.cells.map((cell) => hotspotCellCenter(cell.h3Index));
+  const center: Position = [
+    positions.reduce((total, [longitude]) => total + longitude, 0) / positions.length,
+    positions.reduce((total, [, latitude]) => total + latitude, 0) / positions.length,
+  ];
+  const extentRadius = Math.max(...positions.map((position) => distanceMetres(center, position)), 0);
+  return {
+    category,
+    center,
+    cells: zone.evidence.cells,
+    radiusMetres: Math.min(7_000, Math.max(650, extentRadius + 450, 320 * Math.sqrt(zone.evidence.cells.length) + 35 * Math.sqrt(zone.score))),
+    sourceZoneIds: [zone.id],
+    speciesScores: new Map([[zone.speciesId, zone.score]]),
+  };
+}
+
+function mergeNearbyActivities(circles: readonly ActivityCircle[]) {
+  const parent = circles.map((_, index) => index);
+  function root(index: number): number {
+    const current = parent[index];
+    if (current === undefined || current === index) return index;
+    const resolved = root(current);
+    parent[index] = resolved;
+    return resolved;
+  }
+  for (let left = 0; left < circles.length; left += 1) {
+    for (let right = left + 1; right < circles.length; right += 1) {
+      const leftCircle = circles[left];
+      const rightCircle = circles[right];
+      if (leftCircle === undefined || rightCircle === undefined || leftCircle.category === rightCircle.category) continue;
+      if (distanceMetres(leftCircle.center, rightCircle.center) <= leftCircle.radiusMetres + rightCircle.radiusMetres + 800) parent[root(right)] = root(left);
+    }
+  }
+  const groups = new Map<number, ActivityCircle[]>();
+  circles.forEach((circle, index) => {
+    const group = groups.get(root(index)) ?? [];
+    group.push(circle);
+    groups.set(root(index), group);
+  });
+  return [...groups.values()].map(mergeActivityGroup);
+}
+
+function mergeActivityGroup(circles: readonly ActivityCircle[]) {
+  const totalScore = circles.reduce((total, circle) => total + [...circle.speciesScores.values()].reduce((sum, score) => sum + score, 0), 0);
+  const center: Position = [
+    circles.reduce((total, circle) => total + circle.center[0] * circleScore(circle), 0) / totalScore,
+    circles.reduce((total, circle) => total + circle.center[1] * circleScore(circle), 0) / totalScore,
+  ];
+  const speciesScores = new Map<string, number>();
+  for (const circle of circles) {
+    for (const [speciesId, score] of circle.speciesScores) speciesScores.set(speciesId, (speciesScores.get(speciesId) ?? 0) + score);
+  }
+  return {
+    categories: new Set(circles.map((circle) => circle.category)),
+    center,
+    cells: circles.flatMap((circle) => circle.cells),
+    radiusMetres: Math.min(9_000, Math.max(...circles.map((circle) => distanceMetres(center, circle.center) + circle.radiusMetres))),
+    sourceZoneIds: circles.flatMap((circle) => circle.sourceZoneIds),
+    speciesScores,
+  };
+}
+
+function circleScore(circle: ActivityCircle): number {
+  return [...circle.speciesScores.values()].reduce((total, score) => total + score, 0);
+}
+
+function circleGeometry([longitude, latitude]: Position, radiusMetres: number) {
+  const latitudeRadians = latitude * (Math.PI / 180);
+  const latitudeOffset = radiusMetres / 111_320;
+  const longitudeOffset = radiusMetres / (111_320 * Math.cos(latitudeRadians));
+  const ring = Array.from({ length: 32 }, (_, index) => {
+    const angle = (index / 32) * Math.PI * 2;
+    return [longitude + Math.cos(angle) * longitudeOffset, latitude + Math.sin(angle) * latitudeOffset] as [number, number];
+  });
+  return { type: 'Polygon' as const, coordinates: [[...ring, ring[0]!]] };
+}
+
+function activityName(kind: string): string {
+  if (kind === 'fish_activity') return 'Invasive fish activity area';
+  if (kind === 'plant_activity') return 'Invasive plant activity area';
+  return 'Mixed invasive activity area';
+}
+
+function distanceMetres([leftLongitude, leftLatitude]: Position, [rightLongitude, rightLatitude]: Position): number {
+  const toRadians = Math.PI / 180;
+  const latitudeDelta = (rightLatitude - leftLatitude) * toRadians;
+  const longitudeDelta = (rightLongitude - leftLongitude) * toRadians;
+  const a = Math.sin(latitudeDelta / 2) ** 2 + Math.cos(leftLatitude * toRadians) * Math.cos(rightLatitude * toRadians) * Math.sin(longitudeDelta / 2) ** 2;
+  return 6_371_000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function mapSpecies(speciesId: string, score: number, bundle: PublicDataBundle) {
+  const species = bundle.species.find((candidate) => candidate.id === speciesId);
+  const image = species?.identificationMedia?.find((candidate) => candidate.generated !== true);
+  return {
+    id: speciesId,
+    name: species?.englishName ?? species?.koreanName ?? speciesId,
+    ...(image === undefined ? {} : { imageUrl: image.url }),
+    score,
+  };
 }
 
 function parseViewportBounds(value: string): ViewportBounds | null {

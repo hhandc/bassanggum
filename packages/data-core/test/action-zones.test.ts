@@ -81,7 +81,7 @@ describe('createActionZones', () => {
     );
   });
 
-  it('uses an explicitly supplied landform geometry without implying removal authority', () => {
+  it('does not present a lake as a fish bounty zone', () => {
     const boundary = cellToBoundary(h3Index, true);
     const longitudes = boundary.map(([longitude]) => longitude);
     const latitudes = boundary.map(([, latitude]) => latitude);
@@ -105,15 +105,14 @@ describe('createActionZones', () => {
       },
     ]);
 
-    expect(zones[0]).toMatchObject({ kind: 'lake', name: 'Fixture Lake', sourceCellIds: [h3Index] });
-    expect(zones[0]).not.toHaveProperty('removalAuthorized');
+    expect(zones[0]).toMatchObject({ kind: 'unnamed_cell_cluster', sourceCellIds: [h3Index] });
   });
 
   it('uses forest type and dominant species as sourced habitat context without treating them as a place name', () => {
     const boundary = cellToBoundary(h3Index, true);
     const longitudes = boundary.map(([longitude]) => longitude);
     const latitudes = boundary.map(([, latitude]) => latitude);
-    const zones = createActionZones([hotspotCell(h3Index)], [
+    const zones = createActionZones([hotspotCell(h3Index, 'sicyos-angulatus')], [
       {
         id: 'fixture-forest',
         name: '침엽수림 · 곰솔',
@@ -135,7 +134,7 @@ describe('createActionZones', () => {
           ]],
         },
       },
-    ]);
+    ], new Map([['sicyos-angulatus', 'plant']]));
 
     expect(zones[0]).toMatchObject({
       kind: 'forest_habitat',
@@ -143,9 +142,99 @@ describe('createActionZones', () => {
       sourceAttributes: { FRTP_NM: '침엽수림', KOFTR_NM: '곰솔', updatedYear: '2017' },
       provenance: expect.objectContaining({ datasetId: 'GYEONGBUK-FOREST-HABITAT-47-2025', importRunId: 'gyeongbuk-no-key-import-v1', sourceRecordId: '47_1:000001', sourceFileChecksum: 'sha256:source' }),
     });
+    expect(zones[0]?.geometry).toEqual({ type: 'MultiPolygon', coordinates: [[
+      [
+        [Math.min(...longitudes) - 0.001, Math.min(...latitudes) - 0.001],
+        [Math.max(...longitudes) + 0.001, Math.min(...latitudes) - 0.001],
+        [Math.max(...longitudes) + 0.001, Math.max(...latitudes) + 0.001],
+        [Math.min(...longitudes) - 0.001, Math.max(...latitudes) + 0.001],
+        [Math.min(...longitudes) - 0.001, Math.min(...latitudes) - 0.001],
+      ],
+    ]] });
   });
 
-  it('splits a supplied river line into deterministic two-kilometre reaches with per-reach cell evidence', () => {
+  it('uses official forest geometry for plants and river geometry for fish from the same evidence cell', () => {
+    const boundary = cellToBoundary(h3Index, true);
+    const longitudes = boundary.map(([longitude]) => longitude);
+    const latitudes = boundary.map(([, latitude]) => latitude);
+    const landforms = [
+      {
+        id: 'fixture-forest',
+        name: '침엽수림 · 곰솔',
+        kind: 'forest_habitat' as const,
+        sourceAttributes: { FRTP_NM: '침엽수림', KOFTR_NM: '곰솔', updatedYear: '2017' },
+        provenance: {
+          datasetId: 'GYEONGBUK-FOREST-HABITAT-47-2025', provider: 'Korea Forest Service', sourceUrl: 'https://map.forest.go.kr/',
+          licence: 'Source licence terms were not supplied with the forest-map shapefiles.', attribution: 'Korea Forest Service',
+          importRunId: 'gyeongbuk-no-key-import-v1', sourceRecordId: '47_1:000001', snapshotChecksum: 'sha256:snapshot', sourceFileChecksum: 'sha256:source',
+        },
+        geometry: {
+          type: 'Polygon' as const,
+          coordinates: [[
+            [Math.min(...longitudes) - 0.01, Math.min(...latitudes) - 0.01],
+            [Math.max(...longitudes) + 0.01, Math.min(...latitudes) - 0.01],
+            [Math.max(...longitudes) + 0.01, Math.max(...latitudes) + 0.01],
+            [Math.min(...longitudes) - 0.01, Math.max(...latitudes) + 0.01],
+            [Math.min(...longitudes) - 0.01, Math.min(...latitudes) - 0.01],
+          ]],
+        },
+      },
+      {
+        id: 'fixture-river',
+        name: 'Fixture River',
+        kind: 'river_segment' as const,
+        geometry: {
+          type: 'LineString' as const,
+          coordinates: [
+            [Math.min(...longitudes) - 0.01, (Math.min(...latitudes) + Math.max(...latitudes)) / 2],
+            [Math.max(...longitudes) + 0.01, (Math.min(...latitudes) + Math.max(...latitudes)) / 2],
+          ],
+        },
+      },
+    ] satisfies SuppliedLandform[];
+
+    const zones = createActionZones(
+      [hotspotCell(h3Index, 'sicyos-angulatus'), hotspotCell(h3Index, 'micropterus-salmoides')],
+      landforms,
+      new Map([['sicyos-angulatus', 'plant'], ['micropterus-salmoides', 'fish']]),
+    );
+
+    expect(zones).toHaveLength(2);
+    expect(zones).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: 'forest_habitat', speciesId: 'sicyos-angulatus', name: '침엽수림 · 곰솔' }),
+      expect.objectContaining({ kind: 'river_segment', speciesId: 'micropterus-salmoides', name: 'Fixture River' }),
+    ]));
+    expect(zones.find((zone) => zone.speciesId === 'micropterus-salmoides')?.geometry.coordinates).not.toEqual([[cellToBoundary(h3Index, true)]],);
+  });
+
+  it('associates a plant cell with an official forest in its immediate H3 neighbourhood', () => {
+    const neighbour = gridDisk(h3Index, 1).find((candidate) => candidate !== h3Index)!;
+    const neighbourBoundary = cellToBoundary(neighbour, true);
+    const longitude = neighbourBoundary.reduce((total, [value]) => total + value, 0) / neighbourBoundary.length;
+    const latitude = neighbourBoundary.reduce((total, [, value]) => total + value, 0) / neighbourBoundary.length;
+    const forest = {
+      id: 'nearby-forest',
+      name: '활엽수림 · 참나무류',
+      kind: 'forest_habitat' as const,
+      sourceAttributes: { FRTP_NM: '활엽수림', KOFTR_NM: '참나무류', updatedYear: '2017' },
+      provenance: {
+        datasetId: 'GYEONGBUK-FOREST-HABITAT-47-2025', provider: 'Korea Forest Service', sourceUrl: 'https://map.forest.go.kr/',
+        licence: 'Source licence terms were not supplied with the forest-map shapefiles.', attribution: 'Korea Forest Service',
+        importRunId: 'gyeongbuk-no-key-import-v1', sourceRecordId: '47_1:000002', snapshotChecksum: 'sha256:snapshot', sourceFileChecksum: 'sha256:source',
+      },
+      geometry: { type: 'Polygon' as const, coordinates: [[
+        [longitude - 0.0001, latitude - 0.0001], [longitude + 0.0001, latitude - 0.0001],
+        [longitude + 0.0001, latitude + 0.0001], [longitude - 0.0001, latitude + 0.0001],
+        [longitude - 0.0001, latitude - 0.0001],
+      ]] },
+    } satisfies SuppliedLandform;
+
+    const zone = createActionZones([hotspotCell(h3Index, 'sicyos-angulatus')], [forest], new Map([['sicyos-angulatus', 'plant']]))[0]!;
+
+    expect(zone).toMatchObject({ kind: 'forest_habitat', name: '활엽수림 · 참나무류', sourceCellIds: [h3Index] });
+  });
+
+  it('uses one official river shape for all fish evidence on the same river', () => {
     const riverCells = [
       hotspotCell(latLngToCell(36.5715, 128.565, 8), 'lepomis-macrochirus', 11),
       hotspotCell(latLngToCell(36.5715, 128.587, 8), 'lepomis-macrochirus', 7),
@@ -164,19 +253,15 @@ describe('createActionZones', () => {
       },
     } satisfies SuppliedLandform;
 
-    const zones = createActionZones(riverCells, [river]);
+    const zones = createActionZones(riverCells, [river], new Map([['lepomis-macrochirus', 'fish']]));
 
-    expect(zones.map((zone) => ('name' in zone ? zone.name : undefined))).toEqual([
-      'Fixture River — Reach 01',
-      'Fixture River — Reach 02',
-      'Fixture River — Reach 03',
-    ]);
-    expect(zones.map((zone) => zone.score)).toEqual([11, 7, 4]);
-    expect(zones.map((zone) => zone.sourceCellIds)).toEqual(riverCells.map((cell) => [cell.h3Index]));
-    expect(createActionZones(riverCells, [river])).toEqual(zones);
+    expect(zones).toHaveLength(1);
+    expect(zones[0]).toMatchObject({ kind: 'river_segment', name: 'Fixture River', score: 22, sourceCellIds: riverCells.map((cell) => cell.h3Index).sort() });
+    expect(zones[0]?.geometry).not.toEqual({ type: 'MultiPolygon', coordinates: riverCells.map((cell) => [cellToBoundary(cell.h3Index, true)]) });
+    expect(createActionZones(riverCells, [river], new Map([['lepomis-macrochirus', 'fish']]))).toEqual(zones);
   });
 
-  it('splits a fixture that crosses the two-kilometre threshold', () => {
+  it('keeps a long official river in one named zone', () => {
     const riverCells = [
       hotspotCell(latLngToCell(36.5715, 128.565, 8), 'lepomis-macrochirus', 11),
       hotspotCell(latLngToCell(36.5715, 128.595, 8), 'lepomis-macrochirus', 7),
@@ -194,13 +279,10 @@ describe('createActionZones', () => {
       },
     } satisfies SuppliedLandform;
 
-    const zones = createActionZones(riverCells, [river]);
+    const zones = createActionZones(riverCells, [river], new Map([['lepomis-macrochirus', 'fish']]));
 
-    expect(zones.map((zone) => ('name' in zone ? zone.name : undefined))).toEqual([
-      'Threshold River — Reach 01',
-      'Threshold River — Reach 02',
-    ]);
-    expect(zones.map((zone) => zone.sourceCellIds)).toEqual(riverCells.map((cell) => [cell.h3Index]));
+    expect(zones).toHaveLength(1);
+    expect(zones[0]).toMatchObject({ kind: 'river_segment', name: 'Threshold River', score: 18, sourceCellIds: riverCells.map((cell) => cell.h3Index).sort() });
   });
 
   it('emits privacy-safe, serializable zones without precise points or device tokens', () => {
@@ -214,12 +296,12 @@ describe('createActionZones', () => {
     expect(serialized).not.toContain('"points"');
   });
 
-  it('uses only source-named lake context in the actual no-key three-source bundle', () => {
+  it('uses only category-matched official forest and river context in the actual no-key three-source bundle', () => {
     const inputDirectory = fileURLToPath(new URL('../../../data/raw/demo/', import.meta.url));
     const bundle = importDemoSnapshots(inputDirectory);
 
     expect(bundle.actionZones.length).toBeGreaterThan(0);
-    expect(bundle.actionZones.some((zone) => zone.kind === 'lake' && 'name' in zone && zone.name.trim() !== '')).toBe(true);
-    expect(bundle.actionZones.every((zone) => zone.kind !== 'lake' || ('name' in zone && zone.name.trim() !== ''))).toBe(true);
+    expect(bundle.actionZones.some((zone) => zone.kind === 'forest_habitat' && 'name' in zone && zone.name.trim() !== '')).toBe(true);
+    expect(bundle.actionZones.some((zone) => zone.kind === 'river_segment' && 'name' in zone && zone.name.trim() !== '')).toBe(true);
   });
 });

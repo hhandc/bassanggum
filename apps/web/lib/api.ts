@@ -2,8 +2,15 @@ import type { FeatureCollection, Geometry } from 'geojson';
 
 export type MapFeature = {
   geometry: Geometry;
-  properties: { id: string; kind?: string; name?: string; topSpecies?: string[]; restriction?: string };
+  properties: { id: string; kind?: string; name?: string; topSpecies?: MapSpecies[]; restriction?: string };
   type: 'Feature';
+};
+
+export type MapSpecies = {
+  id: string;
+  imageUrl?: string;
+  name: string;
+  score: number;
 };
 
 export type MapLayers = {
