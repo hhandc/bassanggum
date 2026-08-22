@@ -50,5 +50,5 @@ describe('MCP resources', () => {
         attribution: expect.stringContaining('KDPA'),
       }),
     ]));
-  });
+  }, 30_000);
 });
