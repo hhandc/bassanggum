@@ -113,3 +113,14 @@ there is no reproducible application failure to fix; the gate remains
 unproven solely because the runner kills the real stdio process before it
 returns. The original full generated `data/normalized` bundle was restored
 after each attempt.
+
+## Review round 2: SHX source integrity
+
+- RED: `pnpm exec vitest --config vitest.workspace.ts run packages/data-core/test/import-demo.test.ts -t "only the SHX component"` failed as expected because a `.shx`-only change did not alter `sourceFileChecksum`.
+- GREEN: the same focused command passed after adding `.shx` to the sorted component manifest.
+- The documented source-bundle manifest now covers `.shp`, `.shx`, `.dbf`, `.prj`, and `.cpg`; regenerated checksum:
+  `sha256:38cd7d091c0b57eccc8ca942394c631e26b2bd3f0bcfff93fc087bd555300cd2`.
+
+### Commit
+
+`fix: include KDPA SHX checksum`

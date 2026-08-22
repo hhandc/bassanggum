@@ -30,6 +30,7 @@ KDPA_SHAPEFILE = KDPA_DIRECTORY / 'Protected_areas_OECM_Republic_of_Korea_ver_20
 KDPA_DBF = KDPA_SHAPEFILE.with_suffix('.dbf')
 KDPA_PRJ = KDPA_SHAPEFILE.with_suffix('.prj')
 KDPA_CPG = KDPA_SHAPEFILE.with_suffix('.cpg')
+KDPA_SHX = KDPA_SHAPEFILE.with_suffix('.shx')
 SPREADSHEET_NS = {
     'm': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main',
     'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
@@ -222,6 +223,7 @@ def write_kdpa_snapshot(source_directory: Path = KDPA_DIRECTORY, output_director
     dbf = shapefile.with_suffix('.dbf')
     projection = shapefile.with_suffix('.prj')
     code_page = shapefile.with_suffix('.cpg')
+    index = shapefile.with_suffix('.shx')
     if 'WGS_1984' not in projection.read_text(encoding='ascii'):
         raise ValueError('KDPA source projection must be WGS84.')
     rows = dbf_rows(dbf)
@@ -257,7 +259,7 @@ def write_kdpa_snapshot(source_directory: Path = KDPA_DIRECTORY, output_director
         'licence': 'User-confirmed no-reuse-restriction for the supplied KDPA export.',
         'attribution': 'Korea Database on Protected Areas (KDPA), Protected areas and OECMs, Republic of Korea, 2025.',
         'snapshotFilename': KDPA_SNAPSHOT,
-        'sourceFileChecksum': component_checksum((shapefile, dbf, projection, code_page)),
+        'sourceFileChecksum': component_checksum((shapefile, dbf, projection, code_page, index)),
         'checksum': json_payload_checksum(features),
     }
     payload = {

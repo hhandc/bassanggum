@@ -106,6 +106,21 @@ describe('demo snapshot import', () => {
     });
   }, 30_000);
 
+  it('regenerates KDPA provenance when only the SHX component is tampered with', () => {
+    withCopiedKdpaSourceBundle((sourceDirectory, outputDirectory) => {
+      const original = generateKdpaSnapshot(sourceDirectory, outputDirectory);
+      const shxPath = join(sourceDirectory, 'Protected_areas_OECM_Republic_of_Korea_ver_2025.shx');
+      const shx = readFileSync(shxPath);
+      writeFileSync(shxPath, Buffer.concat([shx, Buffer.from([0])]));
+
+      const regenerated = generateKdpaSnapshot(sourceDirectory, outputDirectory);
+
+      expect(regenerated.source.sourceFileChecksum).not.toBe(original.source.sourceFileChecksum);
+      expect(regenerated.features).toHaveLength(original.features.length);
+      expect(regenerated.features[0]?.properties.sourceRecordId).toBe(original.features[0]?.properties.sourceRecordId);
+    });
+  }, 30_000);
+
   it('keeps only valid Gyeongbuk fish and plant workbook rows in the bounded source snapshot', () => {
     const snapshot = rawSnapshot('ecosystem-disturbing-organisms-gyeongbuk-2016-2024.json');
 
