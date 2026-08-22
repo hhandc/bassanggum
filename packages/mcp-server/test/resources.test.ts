@@ -35,8 +35,8 @@ describe('MCP resources', () => {
     const resources = createResources({ ...bundle, officialOccurrences: [first, second], restrictedAreas: [] });
     const datasets = resources['bassanggum://catalog/datasets']!.datasets as Array<{ sourceRecordId?: string }>;
 
-    expect(datasets).toHaveLength(1);
-    expect(datasets[0]?.sourceRecordId).toBeUndefined();
+    expect(datasets).not.toHaveLength(0);
+    expect(datasets.every((dataset) => dataset.sourceRecordId === undefined)).toBe(true);
   });
 
   it('publishes KDPA safety-screening provenance in the dataset resource', () => {

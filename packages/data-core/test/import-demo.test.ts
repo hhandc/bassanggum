@@ -99,7 +99,7 @@ function writeForestFixtureSource(directory: string): void {
   }
   dbf[dbf.length - 1] = 0x1a;
 
-  const points = [
+  const points: Array<[number, number]> = [
     [1_176_220, 1_861_390], [1_176_360, 1_861_390], [1_176_360, 1_861_520], [1_176_220, 1_861_520], [1_176_220, 1_861_390],
   ];
   const createShp = (records: readonly (readonly (readonly number[])[])[]) => {

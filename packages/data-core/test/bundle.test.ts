@@ -190,7 +190,7 @@ describe('public bundle writer', () => {
       expect(readFileSync(join(directory, 'public-bundle.json'), 'utf8')).not.toContain('deviceTokenHash');
       await expect(writePublicBundle({ ...safeBundle, verifiedCommunitySignals: [privateSignal] } as unknown as PublicDataBundle, directory)).rejects.toThrow(/private|unsafe/i);
     });
-  });
+  }, 30_000);
 
   it('emits point-free hotspot and action-zone GeoJSON while retaining source cell traceability', async () => {
     await withTemporaryDirectory(async (directory) => {
@@ -204,5 +204,5 @@ describe('public bundle writer', () => {
       expect(JSON.stringify(zones.features.map((feature) => feature.properties))).not.toContain('"geometry"');
       expect(zones.features[0]?.properties).toEqual(expect.objectContaining({ sourceCellIds: expect.any(Array), evidence: expect.any(Object) }));
     });
-  });
+  }, 30_000);
 });

@@ -13,9 +13,9 @@
     "typecheck": "pnpm build && tsc --noEmit --project tsconfig.base.json",
     "test": "pnpm build && vitest --config vitest.workspace.ts run",
     "build": "pnpm --recursive --if-present run build",
-    "demo:data": "pnpm --filter @bassanggum/data-core run import:demo",
+    "demo:data": "tsc --project packages/data-core/tsconfig.json && tsc --target ES2024 --module NodeNext --moduleResolution NodeNext --rootDir packages/data-core/scripts --strict --noUncheckedIndexedAccess --exactOptionalPropertyTypes --esModuleInterop --skipLibCheck --types node --outDir packages/data-core/dist/scripts packages/data-core/scripts/import-demo.ts && node packages/data-core/dist/scripts/import-demo.js",
     "sync:ecobank": "python3 scripts/prepare-demo-snapshots.py",
-    "mcp": "pnpm --filter @bassanggum/mcp-server run start"
+    "mcp": "tsc --project packages/mcp-server/tsconfig.json && node packages/mcp-server/dist/index.js"
   },
   "devDependencies": {
     "@types/node": "^22.18.0",

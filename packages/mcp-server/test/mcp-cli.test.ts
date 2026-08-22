@@ -1,16 +1,17 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { fileURLToPath } from 'node:url';
 import { expect, it } from 'vitest';
 
 const repositoryDirectory = fileURLToPath(new URL('../../../', import.meta.url));
 
 it('serves MCP initialization through the documented pnpm mcp command', async () => {
+  const { NODE_OPTIONS: _vitestWorkerNodeOptions, ...subprocessEnvironment } = process.env;
   const transport = new StdioClientTransport({
     command: 'pnpm',
     args: ['--dir', repositoryDirectory, 'mcp'],
     cwd: repositoryDirectory,
-    env: { ...getDefaultEnvironment(), CI: 'true' },
+    env: { ...subprocessEnvironment, CI: 'true' },
     stderr: 'pipe',
   });
   const client = new Client({ name: 'bassanggum-cli-test-client', version: '0.1.0' });

@@ -9,7 +9,7 @@
     "attribution": "Korea Forest Service, Gyeongbuk forest map shards 47_1 and 47_2.",
     "snapshotFilename": "gyeongbuk-forest-habitat-zones-2025.geojson",
     "sourceFileChecksum": "sha256:93bb45655daeff2c50fd6ac3f6e5f2fc0fe10e8b25bcb47939393bb6f58be1d5",
-    "checksum": "sha256:0ba81e3965b7731fdbf5e2cdab5cdd93cf9ab34dcab225051d65e59c26a6484e"
+    "checksum": "sha256:ec859f3f9458adda07bc9f5a862c0db7ee1e55a78cbaad383228bc6e4a18f939"
   },
   "features": [
     {
@@ -3950,24 +3950,6 @@
               128.19109475077502,
               36.52893315001486
             ]
-          ],
-          [
-            [
-              128.1922693234831,
-              36.52967928841733
-            ],
-            [
-              128.19276290594965,
-              36.52938642317195
-            ],
-            [
-              128.19245345286842,
-              36.529809001186706
-            ],
-            [
-              128.1922693234831,
-              36.52967928841733
-            ]
           ]
         ]
       }
@@ -5845,7 +5827,7 @@
     "excludedOutsideGyeongbukRecords": 0,
     "deduplicatedOverlappingRecords": 0,
     "sourceProjection": "EPSG:5179",
-    "filter": "Forest map Polygon SHP shards 47_1 and 47_2; CP949 attributes; EPSG:5179 transformed to WGS84; full transformed geometry within committed Gyeongbuk boundary; 10 m projected-ring simplification; first 48 unique eligible features per shard.",
+    "filter": "Forest map Polygon SHP shards 47_1 and 47_2; CP949 attributes; EPSG:5179 transformed to WGS84; deterministically clipped to committed Gyeongbuk boundary; 10 m projected-ring simplification; first 48 unique eligible features per shard.",
     "limitation": "Forest geometry and forest-type/species attributes provide context only. They never create or change biological hotspot scores. MAP_LABEL is not a place name and no official place name is published."
   }
 }

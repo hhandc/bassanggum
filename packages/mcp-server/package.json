@@ -18,7 +18,7 @@
     "build": "tsc --project tsconfig.json",
     "test": "pnpm --dir ../.. exec vitest --config vitest.workspace.ts run packages/mcp-server/test",
     "typecheck": "tsc --noEmit --project tsconfig.json",
-    "start": "pnpm run build && node dist/index.js"
+    "start": "node dist/index.js"
   },
   "dependencies": {
     "@bassanggum/data-core": "workspace:*",
