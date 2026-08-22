@@ -21,7 +21,7 @@ describe('MCP data queries', () => {
 
     expect(species).not.toHaveLength(0);
     expect(species.every((item) => item.category === 'fish')).toBe(true);
-    expect(result.provenance).toHaveLength(3);
+    expect(result.provenance).toHaveLength(5);
     expect(result.provenance.every((record) => record.sourceRecordId === undefined)).toBe(true);
     expect(species[0]).toMatchObject({
       evidenceType: 'official',
@@ -157,7 +157,14 @@ describe('MCP data queries', () => {
     const source = bundle.officialOccurrences[0]!;
     const profile = getAreaProfile({
       ...bundle,
-      waterbodies: [{ ...source, id: 'waterbody:fixture', name: 'Fixture Lake', kind: 'lake', geometry: zone.geometry }],
+      waterbodies: [{
+        ...source,
+        id: 'waterbody:fixture',
+        name: 'Fixture Lake',
+        kind: 'lake',
+        geometry: zone.geometry,
+        sourceAttributes: { UFID: 'fixture', SERV: '', MARA: 1, MNGT: '', FMTA: 'fixture' },
+      }],
       restrictedAreas: [{ ...source, id: 'restricted:fixture', name: 'Fixture Restriction', restriction: 'No collection.', geometry: zone.geometry }],
       verifiedEvents: [{
         ...source,

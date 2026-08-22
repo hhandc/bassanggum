@@ -18,7 +18,9 @@ type PreparedLandform = {
   name: string;
   kind: 'lake' | 'river_segment' | 'forest_habitat';
   geometry: AreaGeometry | RiverReachGeometry;
+  bounds: Bounds;
 };
+type Bounds = { minLongitude: number; minLatitude: number; maxLongitude: number; maxLatitude: number };
 type ZoneDraft = {
   kind: ActionZone['kind'];
   name?: string;
@@ -37,6 +39,7 @@ export function createActionZones(cells: readonly HotspotCell[], landforms: read
     .map((landform) => SuppliedLandformSchema.parse(landform))
     .sort((left, right) => left.id.localeCompare(right.id));
   const preparedLandforms = parsedLandforms.flatMap(prepareLandform);
+  const landformIndex = indexLandforms(preparedLandforms);
   assertUniqueCells(cells);
 
   const drafts = [...cellsBySpecies(cells).entries()].flatMap(([speciesId, speciesCells]) => {
@@ -44,7 +47,7 @@ export function createActionZones(cells: readonly HotspotCell[], landforms: read
     const unassigned: HotspotCell[] = [];
 
     for (const cell of speciesCells) {
-      const landform = preparedLandforms.find((candidate) => landformIntersectsCell(candidate, cell.h3Index));
+      const landform = candidateLandforms(landformIndex, cell.h3Index).find((candidate) => landformIntersectsCell(candidate, cell.h3Index));
       if (landform === undefined) {
         unassigned.push(cell);
         continue;
@@ -78,7 +81,7 @@ export function createActionZones(cells: readonly HotspotCell[], landforms: read
 
 function prepareLandform(landform: SuppliedLandform): PreparedLandform[] {
   if (landform.kind !== 'river_segment') {
-    return [landform];
+    return [{ ...landform, bounds: geometryBounds(landform.geometry) }];
   }
 
   return splitRiverIntoReaches(landform.geometry).map((geometry, index) => {
@@ -89,8 +92,69 @@ function prepareLandform(landform: SuppliedLandform): PreparedLandform[] {
       name: `${landform.name} — Reach ${reachLabel}`,
       kind: 'river_segment',
       geometry,
+      bounds: geometryBounds(geometry),
     };
   });
+}
+
+const LANDFORM_INDEX_DEGREES = 0.1;
+
+function indexLandforms(landforms: readonly PreparedLandform[]): Map<string, PreparedLandform[]> {
+  const index = new Map<string, PreparedLandform[]>();
+  for (const landform of landforms) {
+    for (let longitude = tileCoordinate(landform.bounds.minLongitude); longitude <= tileCoordinate(landform.bounds.maxLongitude); longitude += 1) {
+      for (let latitude = tileCoordinate(landform.bounds.minLatitude); latitude <= tileCoordinate(landform.bounds.maxLatitude); latitude += 1) {
+        const key = `${longitude}:${latitude}`;
+        const candidates = index.get(key) ?? [];
+        candidates.push(landform);
+        index.set(key, candidates);
+      }
+    }
+  }
+  return index;
+}
+
+function candidateLandforms(index: ReadonlyMap<string, readonly PreparedLandform[]>, h3Index: string): PreparedLandform[] {
+  const boundary = cellToBoundary(h3Index, true).map(toPosition);
+  const bounds = coordinateBounds(boundary);
+  const candidates = new Map<string, PreparedLandform>();
+  for (let longitude = tileCoordinate(bounds.minLongitude); longitude <= tileCoordinate(bounds.maxLongitude); longitude += 1) {
+    for (let latitude = tileCoordinate(bounds.minLatitude); latitude <= tileCoordinate(bounds.maxLatitude); latitude += 1) {
+      for (const candidate of index.get(`${longitude}:${latitude}`) ?? []) {
+        if (boundsIntersect(bounds, candidate.bounds)) {
+          candidates.set(candidate.id, candidate);
+        }
+      }
+    }
+  }
+  return [...candidates.values()].sort((left, right) => left.id.localeCompare(right.id));
+}
+
+function tileCoordinate(coordinate: number): number {
+  return Math.floor(coordinate / LANDFORM_INDEX_DEGREES);
+}
+
+function geometryBounds(geometry: AreaGeometry | RiverReachGeometry): Bounds {
+  const positions = geometry.type === 'Polygon'
+    ? geometry.coordinates.flat().map(toPosition)
+    : geometry.type === 'MultiPolygon'
+      ? geometry.coordinates.flat(2).map(toPosition)
+      : geometry.coordinates;
+  return coordinateBounds(positions);
+}
+
+function coordinateBounds(positions: readonly Position[]): Bounds {
+  return {
+    minLongitude: Math.min(...positions.map(([longitude]) => longitude)),
+    minLatitude: Math.min(...positions.map(([, latitude]) => latitude)),
+    maxLongitude: Math.max(...positions.map(([longitude]) => longitude)),
+    maxLatitude: Math.max(...positions.map(([, latitude]) => latitude)),
+  };
+}
+
+function boundsIntersect(left: Bounds, right: Bounds): boolean {
+  return left.minLongitude <= right.maxLongitude && left.maxLongitude >= right.minLongitude &&
+    left.minLatitude <= right.maxLatitude && left.maxLatitude >= right.minLatitude;
 }
 
 /**

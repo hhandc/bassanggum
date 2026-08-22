@@ -171,6 +171,16 @@ export const WaterbodySchema = z
     name: NonEmptyString,
     kind: z.enum(['lake', 'river', 'river_segment', 'wetland', 'other']),
     geometry: AreaGeometrySchema,
+    /** Official fields preserved from the National Base Map lake layer. */
+    sourceAttributes: z
+      .object({
+        UFID: NonEmptyString,
+        SERV: z.string(),
+        MARA: z.number().finite(),
+        MNGT: z.string(),
+        FMTA: z.string(),
+      })
+      .strict(),
   })
   .merge(OfficialProvenanceSchema)
   .strict();

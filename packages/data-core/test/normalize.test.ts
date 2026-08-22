@@ -1,6 +1,7 @@
 import {
   normalizeHabitatFeature,
   normalizeOccurrenceRow,
+  normalizeWaterbodyFeature,
   type DatasetSource,
   type ImportRun,
 } from '@bassanggum/data-core';
@@ -246,5 +247,19 @@ describe('occurrence normalizers', () => {
       frequencyBand: 'frequent',
       sourceRecordId: 'demo-habitat-001',
     });
+  });
+
+  it('uses a lake action-zone label only when the official NAME is nonempty', () => {
+    const lakeFeature = {
+      type: 'Feature',
+      properties: { sourceRecordId: 'lake-001', UFID: 'lake-001', name: 'Official Lake', SERV: '', MARA: 1, MNGT: '', FMTA: 'R2404' },
+      geometry: {
+        type: 'Polygon',
+        coordinates: [[[128.58, 36.55], [128.62, 36.55], [128.62, 36.59], [128.58, 36.55]]],
+      },
+    };
+
+    expect(normalizeWaterbodyFeature(lakeFeature, fishSource, importRun)).toMatchObject({ name: 'Official Lake', sourceRecordId: 'lake-001' });
+    expect(normalizeWaterbodyFeature({ ...lakeFeature, properties: { ...lakeFeature.properties, name: '  ' } }, fishSource, importRun)).toBeNull();
   });
 });

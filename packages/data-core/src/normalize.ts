@@ -13,6 +13,7 @@ import {
   HabitatAreaSchema,
   PublicDataBundleSchema,
   RestrictedAreaSchema,
+  WaterbodySchema,
   type DatasetSource,
   type HabitatArea,
   type ImportRun,
@@ -20,6 +21,8 @@ import {
   type PublicDataBundle,
   type RestrictedArea,
   type Species,
+  type SuppliedLandform,
+  type Waterbody,
 } from './schema.js';
 
 type JsonRecord = Record<string, unknown>;
@@ -353,6 +356,53 @@ export function normalizeRestrictedAreaFeature(
   return parsed.success ? parsed.data : null;
 }
 
+/**
+ * National Base Map lake polygons are informational named context.  A name
+ * must come from the source NAME field; unnamed polygons deliberately do not
+ * become action-zone labels.
+ */
+export function normalizeWaterbodyFeature(
+  feature: unknown,
+  source: DatasetSource,
+  importRun: ImportRun,
+): Waterbody | null {
+  if (!isRecord(feature) || !isRecord(feature.properties) || !validatedMetadata(source, importRun)) {
+    return null;
+  }
+
+  const sourceRecordId = nonEmptyString(feature.properties.sourceRecordId ?? feature.properties.UFID);
+  const name = nonEmptyString(feature.properties.name ?? feature.properties.NAME);
+  const geometry = AreaGeometrySchema.safeParse(feature.geometry);
+  const mara = coordinate(feature.properties.MARA);
+  const ufid = nonEmptyString(feature.properties.UFID);
+  const serv = typeof feature.properties.SERV === 'string' ? feature.properties.SERV.trim() : null;
+  const mngt = typeof feature.properties.MNGT === 'string' ? feature.properties.MNGT.trim() : null;
+  const fmta = typeof feature.properties.FMTA === 'string' ? feature.properties.FMTA.trim() : null;
+  if (
+    sourceRecordId === null ||
+    name === null ||
+    !geometry.success ||
+    !hasOnlyGyeongbukPositions(geometry.data) ||
+    ufid === null ||
+    mara === null ||
+    serv === null ||
+    mngt === null ||
+    fmta === null
+  ) {
+    return null;
+  }
+
+  const parsed = WaterbodySchema.safeParse({
+    id: `waterbody:${source.datasetId}:${sourceRecordId}`,
+    name,
+    kind: 'lake',
+    geometry: geometry.data,
+    sourceAttributes: { UFID: ufid, SERV: serv, MARA: mara, MNGT: mngt, FMTA: fmta },
+    ...createProvenance(source, importRun, sourceRecordId),
+  });
+  return parsed.success ? parsed.data : null;
+}
+
 function readSnapshot(path: string): { source: DatasetSource; records: unknown[] } {
   const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'));
   if (!isRecord(parsed) || !Array.isArray(parsed.records)) {
@@ -413,6 +463,7 @@ export function importDemoSnapshots(inputDirectory: string): PublicDataBundle {
   const alienFish = readSnapshot(join(inputDirectory, 'nie-alien-fish-gyeongbuk-2015-2022.json'));
   const alienPlants = readSnapshot(join(inputDirectory, 'nie-alien-plants-gyeongbuk-2015-2021.json'));
   const kdpaBoundaries = readHabitatSnapshot(join(inputDirectory, 'kdpa-protected-areas-oecm-gyeongbuk-2025.geojson'));
+  const lakes = readHabitatSnapshot(join(inputDirectory, 'national-base-map-lakes-gyeongbuk-2024.geojson'));
   const catalogue = readCatalogSnapshot(join(inputDirectory, 'species-catalog.json'));
   const importRun: ImportRun = {
     id: 'gyeongbuk-no-key-import-v1',
@@ -442,12 +493,22 @@ export function importDemoSnapshots(inputDirectory: string): PublicDataBundle {
     const area = normalizeRestrictedAreaFeature(feature, kdpaBoundaries.source, importRun);
     return area === null ? [] : [area];
   });
+  const waterbodies = lakes.features.flatMap((feature) => {
+    const waterbody = normalizeWaterbodyFeature(feature, lakes.source, importRun);
+    return waterbody === null ? [] : [waterbody];
+  });
+  const lakeLandforms: SuppliedLandform[] = waterbodies.map((waterbody) => ({
+    id: waterbody.id,
+    name: waterbody.name,
+    kind: 'lake',
+    geometry: waterbody.geometry,
+  }));
 
   return PublicDataBundleSchema.parse({
     species: cataloguedSpecies,
     officialOccurrences: occurrences,
     habitatAreas: [],
-    waterbodies: [],
+    waterbodies,
     restrictedAreas,
     verifiedCommunitySignals: [],
     verifiedEvents: [],
@@ -459,6 +520,7 @@ export function importDemoSnapshots(inputDirectory: string): PublicDataBundle {
         verifiedCommunitySignals: [],
         verifiedEvents: [],
       }),
+      lakeLandforms,
     ),
   });
 }

@@ -3,6 +3,7 @@ import {
   PolygonSchema,
   PublicDataBundleSchema,
   SpeciesSchema,
+  WaterbodySchema,
 } from '@bassanggum/data-core';
 import { describe, expect, it } from 'vitest';
 
@@ -72,6 +73,32 @@ describe('normalized public-data schemas', () => {
         ],
       }),
     ).toThrow();
+  });
+
+  it('accepts only named lakes with their retained official source attributes', () => {
+    expect(
+      WaterbodySchema.parse({
+        id: 'waterbody:N3A_E0052114:lake-42',
+        name: 'Test Reservoir',
+        kind: 'lake',
+        geometry: {
+          type: 'Polygon',
+          coordinates: [[[128.5, 36.4], [128.6, 36.4], [128.6, 36.5], [128.5, 36.4]]],
+        },
+        sourceAttributes: { UFID: 'lake-42', SERV: 'agricultural water', MARA: 100, MNGT: 'Test Authority', FMTA: 'R2404' },
+        ...officialProvenance,
+      }),
+    ).toMatchObject({ sourceAttributes: { UFID: 'lake-42' } });
+    expect(() => WaterbodySchema.parse({
+      id: 'waterbody:N3A_E0052114:lake-42',
+      name: '   ',
+      kind: 'lake',
+      geometry: {
+        type: 'Polygon',
+        coordinates: [[[128.5, 36.4], [128.6, 36.4], [128.6, 36.5], [128.5, 36.4]]],
+      },
+      ...officialProvenance,
+    })).toThrow();
   });
 
   it('excludes media and private coordinates from public data bundles', () => {

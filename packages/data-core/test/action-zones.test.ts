@@ -151,11 +151,12 @@ describe('createActionZones', () => {
     expect(serialized).not.toContain('"points"');
   });
 
-  it('creates no named landforms in the actual no-key three-source bundle', () => {
+  it('uses only source-named lake context in the actual no-key three-source bundle', () => {
     const inputDirectory = fileURLToPath(new URL('../../../data/raw/demo/', import.meta.url));
     const bundle = importDemoSnapshots(inputDirectory);
 
     expect(bundle.actionZones.length).toBeGreaterThan(0);
-    expect(bundle.actionZones.every((zone) => zone.kind === 'unnamed_cell_cluster' && !('name' in zone))).toBe(true);
+    expect(bundle.actionZones.some((zone) => zone.kind === 'lake' && 'name' in zone && zone.name.trim() !== '')).toBe(true);
+    expect(bundle.actionZones.every((zone) => zone.kind !== 'lake' || ('name' in zone && zone.name.trim() !== ''))).toBe(true);
   });
 });

@@ -83,7 +83,7 @@ describe('public bundle writer', () => {
 
         const sources = JSON.parse(readFileSync(join(firstDirectory, 'source-catalog.json'), 'utf8')) as { sources: unknown[] };
         const publicBundle = JSON.parse(readFileSync(join(firstDirectory, 'public-bundle.json'), 'utf8')) as PublicDataBundle;
-        expect(sources.sources).toHaveLength(4);
+        expect(sources.sources).toHaveLength(5);
         expect(sources.sources).toEqual(expect.arrayContaining([
           expect.objectContaining({
             datasetId: 'KDPA-PROTECTED-AREAS-OECM-KR-2025',
@@ -101,15 +101,22 @@ describe('public bundle writer', () => {
             sourceUrl: 'https://www.nie-ecobank.kr/rdm/rsrchdoi/selectRsrchDtaDtlVw.do?rsrchDtaId=RSD_0000000000012705',
             attribution: expect.any(String),
           }),
+          expect.objectContaining({
+            datasetId: 'N3A_E0052114',
+            sourceUrl: 'https://map.ngii.go.kr/ms/map/NlipMap.do',
+            attribution: expect.stringContaining('NGII'),
+          }),
         ]));
         expect(publicBundle.species).toHaveLength(15);
         expect(new Set(publicBundle.species.map((species) => species.id)).size).toBe(15);
         expect(readFileSync(join(firstDirectory, 'public-bundle.json'), 'utf8')).not.toContain('identificationMedia');
         expect(readFileSync(join(firstDirectory, 'public-bundle.json'), 'utf8')).toContain('Ordinary field text can reference profile maps and media literacy.');
         expect(publicBundle.habitatAreas).toEqual([]);
-        expect(publicBundle.waterbodies).toEqual([]);
+        expect(publicBundle.waterbodies).toEqual(expect.arrayContaining([
+          expect.objectContaining({ datasetId: 'N3A_E0052114', kind: 'lake', name: expect.any(String) }),
+        ]));
         expect(publicBundle.restrictedAreas).not.toHaveLength(0);
-        expect(publicBundle.actionZones.every((zone) => zone.kind === 'unnamed_cell_cluster' && !('name' in zone))).toBe(true);
+        expect(publicBundle.actionZones.some((zone) => zone.kind === 'lake' && 'name' in zone)).toBe(true);
         expect(JSON.parse(readFileSync(join(firstDirectory, 'restricted-areas.geojson'), 'utf8'))).toMatchObject({
           features: expect.arrayContaining([
             expect.objectContaining({ properties: expect.objectContaining({ datasetId: 'KDPA-PROTECTED-AREAS-OECM-KR-2025' }) }),
