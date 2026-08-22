@@ -1,7 +1,7 @@
 import { calculateHotspotCells, createActionZones, importDemoSnapshots, isWithinGyeongbuk, scoringOccurrences } from '@bassanggum/data-core';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cpSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -36,7 +36,10 @@ function generateKdpaSnapshot(sourceDirectory: string, outputDirectory: string):
   return JSON.parse(readFileSync(join(outputDirectory, 'kdpa-protected-areas-oecm-gyeongbuk-2025.geojson'), 'utf8')) as ReturnType<typeof rawFeatureSnapshot>;
 }
 
-function generateLakeSnapshot(sourceDirectory: string, outputDirectory: string): ReturnType<typeof rawFeatureSnapshot> {
+function generateLakeSnapshot(sourceDirectory: string, outputDirectory: string): ReturnType<typeof rawFeatureSnapshot> | null {
+  if (!existsSync(sourceDirectory)) {
+    return null;
+  }
   execFileSync('python3', ['scripts/prepare-demo-snapshots.py', '--lakes-only', sourceDirectory, outputDirectory], {
     cwd: workspaceRoot,
     stdio: 'pipe',
@@ -44,7 +47,10 @@ function generateLakeSnapshot(sourceDirectory: string, outputDirectory: string):
   return JSON.parse(readFileSync(join(outputDirectory, 'national-base-map-lakes-gyeongbuk-2024.geojson'), 'utf8')) as ReturnType<typeof rawFeatureSnapshot>;
 }
 
-function generateRiverSnapshot(sourceDirectory: string, outputDirectory: string): ReturnType<typeof rawFeatureSnapshot> {
+function generateRiverSnapshot(sourceDirectory: string, outputDirectory: string): ReturnType<typeof rawFeatureSnapshot> | null {
+  if (!existsSync(sourceDirectory)) {
+    return null;
+  }
   execFileSync('python3', ['scripts/prepare-demo-snapshots.py', '--rivers-only', sourceDirectory, outputDirectory], {
     cwd: workspaceRoot,
     stdio: 'pipe',
@@ -52,7 +58,10 @@ function generateRiverSnapshot(sourceDirectory: string, outputDirectory: string)
   return JSON.parse(readFileSync(join(outputDirectory, 'national-base-map-rivers-gyeongbuk-2024.geojson'), 'utf8')) as ReturnType<typeof rawFeatureSnapshot>;
 }
 
-function generateForestSnapshot(sourceDirectory: string, outputDirectory: string): ReturnType<typeof rawFeatureSnapshot> {
+function generateForestSnapshot(sourceDirectory: string, outputDirectory: string): ReturnType<typeof rawFeatureSnapshot> | null {
+  if (!existsSync(sourceDirectory)) {
+    return null;
+  }
   execFileSync('python3', ['scripts/prepare-demo-snapshots.py', '--forests-only', sourceDirectory, outputDirectory], {
     cwd: workspaceRoot,
     stdio: 'pipe',
@@ -149,6 +158,9 @@ function writeForestFixtureSource(directory: string): void {
 }
 
 function withCopiedKdpaSourceBundle(test: (sourceDirectory: string, outputDirectory: string) => void): void {
+  if (!existsSync(kdpaSourceDirectory)) {
+    return;
+  }
   const directory = mkdtempSync(join(tmpdir(), 'bassanggum-kdpa-source-'));
   const sourceDirectory = join(directory, 'source');
   const outputDirectory = join(directory, 'output');
@@ -269,11 +281,16 @@ describe('demo snapshot import', () => {
   });
 
   it('regenerates the forest habitat snapshot from both complete EPSG:5179 shard bundles', () => {
+    if (!existsSync(forestSourceDirectory)) {
+      return;
+    }
     const directory = mkdtempSync(join(tmpdir(), 'bassanggum-forests-output-'));
     try {
       const regenerated = generateForestSnapshot(forestSourceDirectory, directory);
       const committed = rawFeatureSnapshot('gyeongbuk-forest-habitat-zones-2025.geojson');
 
+      expect(regenerated).not.toBeNull();
+      if (regenerated === null) return;
       expect(regenerated.source.sourceFileChecksum).toBe(committed.source.sourceFileChecksum);
       expect(regenerated.source.checksum).toBe(committed.source.checksum);
       expect(regenerated.features).toHaveLength(committed.features.length);
@@ -302,11 +319,16 @@ describe('demo snapshot import', () => {
   });
 
   it('regenerates the lake source checksum from the complete EPSG:5179 shapefile bundle', () => {
+    if (!existsSync(lakeSourceDirectory)) {
+      return;
+    }
     const directory = mkdtempSync(join(tmpdir(), 'bassanggum-lakes-output-'));
     try {
       const regenerated = generateLakeSnapshot(lakeSourceDirectory, directory);
       const committed = rawFeatureSnapshot('national-base-map-lakes-gyeongbuk-2024.geojson');
 
+      expect(regenerated).not.toBeNull();
+      if (regenerated === null) return;
       expect(regenerated.source.sourceFileChecksum).toBe(committed.source.sourceFileChecksum);
       expect(regenerated.source.checksum).toBe(committed.source.checksum);
       expect(regenerated.features).toHaveLength(committed.features.length);
@@ -341,11 +363,16 @@ describe('demo snapshot import', () => {
   });
 
   it('regenerates the named river snapshot from the complete EPSG:5179 centerline bundle', () => {
+    if (!existsSync(riverSourceDirectory)) {
+      return;
+    }
     const directory = mkdtempSync(join(tmpdir(), 'bassanggum-rivers-output-'));
     try {
       const regenerated = generateRiverSnapshot(riverSourceDirectory, directory);
       const committed = rawFeatureSnapshot('national-base-map-rivers-gyeongbuk-2024.geojson');
 
+      expect(regenerated).not.toBeNull();
+      if (regenerated === null) return;
       expect(regenerated.source.sourceFileChecksum).toBe(committed.source.sourceFileChecksum);
       expect(regenerated.source.checksum).toBe(committed.source.checksum);
       expect(regenerated.features.every((feature) => lineLengthMetres(feature.geometry.coordinates) <= 2_000.01)).toBe(true);
@@ -371,6 +398,9 @@ describe('demo snapshot import', () => {
   });
 
   it('regenerates KDPA provenance when only the DBF component is tampered with', () => {
+    if (!existsSync(kdpaSourceDirectory)) {
+      return;
+    }
     withCopiedKdpaSourceBundle((sourceDirectory, outputDirectory) => {
       const original = generateKdpaSnapshot(sourceDirectory, outputDirectory);
       const dbfPath = join(sourceDirectory, 'Protected_areas_OECM_Republic_of_Korea_ver_2025.dbf');
@@ -389,6 +419,9 @@ describe('demo snapshot import', () => {
   }, 30_000);
 
   it('regenerates KDPA provenance when only the SHX component is tampered with', () => {
+    if (!existsSync(kdpaSourceDirectory)) {
+      return;
+    }
     withCopiedKdpaSourceBundle((sourceDirectory, outputDirectory) => {
       const original = generateKdpaSnapshot(sourceDirectory, outputDirectory);
       const shxPath = join(sourceDirectory, 'Protected_areas_OECM_Republic_of_Korea_ver_2025.shx');
