@@ -88,3 +88,28 @@ real-stdio MCP smoke requires a run outside that execution limit.
 ### Commit
 
 `fix: harden KDPA source bundle integrity`
+
+## Verification-gate follow-up
+
+No repository code was changed for this verification-only follow-up.
+
+I ran a direct Node SDK client that starts the real documented child process:
+
+```text
+pnpm --dir /Users/hyeonhongchang/Documents/ChatGPT/junctionX/.worktrees/bassanggum mcp
+```
+
+The client waits for MCP initialization, calls `get_data_provenance`, and reads
+`bassanggum://catalog/datasets`; both assertions require dataset
+`KDPA-PROTECTED-AREAS-OECM-KR-2025` with `https://www.kdpa.kr/`.
+
+Result: the desktop command runner terminated the direct SDK smoke at 30.2
+seconds with no SDK response and no server stdout/stderr. To isolate public
+bundle volume, I repeated the identical documented child command against a
+temporary, freshly generated minimal public bundle containing one real KDPA
+restricted-area record. It was also terminated at 30.2 seconds, both with the
+SDK's default child environment and with the inherited shell environment. Thus
+there is no reproducible application failure to fix; the gate remains
+unproven solely because the runner kills the real stdio process before it
+returns. The original full generated `data/normalized` bundle was restored
+after each attempt.
