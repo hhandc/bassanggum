@@ -87,7 +87,7 @@ type DateFilter = { dateFrom?: string | undefined; dateTo?: string | undefined }
 
 export function listSpecies(bundle: PublicDataBundle, rawInput: z.input<typeof ListSpeciesInput> = {}): QueryResult<Record<string, unknown>> {
   const input = ListSpeciesInput.parse(rawInput);
-  const provenance = bundleProvenance(bundle);
+  const provenance = sourceProvenance(bundle);
   const items = bundle.species
     .filter((species) => input.category === undefined || species.category === input.category)
     .sort((left, right) => left.id.localeCompare(right.id))
@@ -140,7 +140,7 @@ export function getHotspots(bundle: PublicDataBundle, rawInput: z.input<typeof G
     .sort((left, right) => Number(right.score) - Number(left.score) || String(left.id).localeCompare(String(right.id)));
   return page(items, input, {
     evidenceType: evidenceTypeFor(items),
-    provenance: uniqueProvenance(items.flatMap((item) => item.provenance)),
+    provenance: sourceProvenanceFrom(items.flatMap((item) => item.provenance)),
   });
 }
 
@@ -167,7 +167,7 @@ export function getAreaProfile(bundle: PublicDataBundle, rawInput: z.input<typeo
     matchingWaterbodies: matchingWaterbodies.map(attributedArea),
     restrictions,
     matchingEvents,
-    provenance: uniqueProvenance([
+    provenance: sourceProvenanceFrom([
       hotspot.provenance,
       ...matchingWaterbodies.map(provenanceOf),
       ...bundle.restrictedAreas.filter((area) => geometryIntersectsGeometry(zone.geometry, area.geometry)).map(provenanceOf),
@@ -189,7 +189,7 @@ export function findRemovalEvents(bundle: PublicDataBundle, rawInput: z.input<ty
     .sort((left, right) => String(left.startsAt).localeCompare(String(right.startsAt)) || String(left.id).localeCompare(String(right.id)));
   return page(items, input, {
     evidenceType: 'official',
-    provenance: uniqueProvenance(bundle.verifiedEvents
+    provenance: sourceProvenanceFrom(bundle.verifiedEvents
       .filter((event) => input.speciesId === undefined || event.eligibleSpeciesIds.includes(input.speciesId))
       .filter((event) => eventMatchesDate(event, input))
       .filter((event) => input.areaName === undefined || event.title.toLocaleLowerCase().includes(input.areaName.toLocaleLowerCase()) || namedAreas.some((area) => geometryIntersectsGeometry(event.geometry, area.geometry)))
@@ -215,7 +215,7 @@ export function getSpeciesGuidance(bundle: PublicDataBundle, rawInput: z.input<t
     disposalGuidance: species.disposalGuidance,
     cookingGuidance: species.cookingGuidance,
     evidenceType: 'official' as const,
-    provenance: bundleProvenance(bundle),
+    provenance: sourceProvenance(bundle),
   };
 }
 
@@ -227,7 +227,7 @@ export function getDataProvenance(bundle: PublicDataBundle, rawInput: z.input<ty
   const items = provenance
     .map((record) => ({ ...record, evidenceType: 'official' as const, provenance: record }))
     .sort((left, right) => byProvenanceIdentity(left, right));
-  return page(items, input, { evidenceType: 'official', provenance });
+  return page(items, input, { evidenceType: 'official', provenance: sourceProvenance(bundle) });
 }
 
 function dateRangeIsOrdered(value: DateFilter, context: z.RefinementCtx): void {
@@ -261,8 +261,8 @@ function sourceRecords(bundle: PublicDataBundle): Array<OfficialOccurrence | Pub
   return [...bundle.officialOccurrences, ...bundle.habitatAreas, ...bundle.waterbodies, ...bundle.restrictedAreas, ...bundle.verifiedEvents];
 }
 
-function bundleProvenance(bundle: PublicDataBundle): Provenance[] {
-  return allDataProvenance(bundle);
+export function sourceProvenance(bundle: PublicDataBundle): Provenance[] {
+  return sourceProvenanceFrom(sourceRecords(bundle).map(provenanceOf));
 }
 
 export function allDataProvenance(bundle: PublicDataBundle): Provenance[] {
@@ -291,6 +291,15 @@ function uniqueProvenance(values: Array<Provenance | Provenance[] | undefined>):
     bySourceRecord.set(provenanceIdentity(value), value);
   }
   return [...bySourceRecord.values()].sort(byProvenanceIdentity);
+}
+
+function sourceProvenanceFrom(values: Array<Provenance | Provenance[] | undefined>): Provenance[] {
+  const byDataset = new Map<string, Provenance>();
+  for (const value of values.flatMap((item) => item === undefined ? [] : Array.isArray(item) ? item : [item])) {
+    const { importRunId: _importRunId, sourceRecordId: _sourceRecordId, ...source } = value;
+    byDataset.set([source.datasetId, source.sourceUrl].join('\u0000'), source);
+  }
+  return [...byDataset.values()].sort((left, right) => [left.datasetId, left.sourceUrl].join('\u0000').localeCompare([right.datasetId, right.sourceUrl].join('\u0000')));
 }
 
 function hotspotResult(zone: ActionZone, records: ReturnType<typeof sourceRecords>): Record<string, unknown> & { provenance: Provenance[]; evidenceType: EvidenceType; status: z.infer<typeof StatusSchema> } {

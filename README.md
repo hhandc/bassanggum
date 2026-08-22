@@ -94,9 +94,10 @@ live official notices, eligibility determinations, or payout promises.
 The full external originals are deliberately not committed. To prepare a new
 bounded snapshot, obtain the three source files through their respective source
 records, preserve the originals unchanged, and verify that redistribution is
-permitted for the intended release. Place the supplied workbook and CSV files
-under `/Users/hyeonhongchang/Downloads/` with the filenames expected by
-`scripts/prepare-demo-snapshots.py`, then run:
+permitted for the intended release. **Current script constraint:**
+`scripts/prepare-demo-snapshots.py` has no input-path option and discovers the
+expected filenames only under `/Users/hyeonhongchang/Downloads/`. Place the
+supplied workbook and CSV files there, then run:
 
 ```bash
 pnpm sync:ecobank

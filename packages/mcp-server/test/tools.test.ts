@@ -16,10 +16,13 @@ const bundle = importDemoSnapshots(demoDirectory);
 
 describe('MCP data queries', () => {
   it('filters species by category with source-attributed results', () => {
-    const species = listSpecies(bundle, { category: 'fish' }).items;
+    const result = listSpecies(bundle, { category: 'fish' });
+    const species = result.items;
 
     expect(species).not.toHaveLength(0);
     expect(species.every((item) => item.category === 'fish')).toBe(true);
+    expect(result.provenance).toHaveLength(3);
+    expect(result.provenance.every((record) => record.sourceRecordId === undefined)).toBe(true);
     expect(species[0]).toMatchObject({
       evidenceType: 'official',
       provenance: expect.arrayContaining([expect.objectContaining({ datasetId: expect.any(String), sourceUrl: expect.any(String) })]),

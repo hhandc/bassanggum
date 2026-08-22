@@ -1,5 +1,5 @@
 import type { PublicDataBundle } from '@bassanggum/data-core';
-import { allDataProvenance, getHotspots, listSpecies, findRemovalEvents } from './tools.js';
+import { sourceProvenance, getHotspots, listSpecies, findRemovalEvents } from './tools.js';
 
 export const RESOURCE_URIS = {
   datasets: 'bassanggum://catalog/datasets',
@@ -10,7 +10,7 @@ export const RESOURCE_URIS = {
 
 /** Returns only generated public catalog, hotspot, and event data for fixed MCP resources. */
 export function createResources(bundle: PublicDataBundle): Record<string, Record<string, unknown>> {
-  const provenance = allDataProvenance(bundle);
+  const provenance = sourceProvenance(bundle);
   const species = listSpecies(bundle, {});
   const hotspots = getHotspots(bundle, {});
   const events = findRemovalEvents(bundle, {});

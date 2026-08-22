@@ -26,6 +26,16 @@ it('serves MCP initialization through the documented pnpm mcp command', async ()
       'list_species',
       'search_occurrences',
     ]);
+    const species = await client.callTool({ name: 'list_species', arguments: {} });
+    expect(species).not.toHaveProperty('isError', true);
+    expect(species).not.toHaveProperty('toolResult');
+    if ('toolResult' in species) {
+      throw new Error('Expected list_species to return a direct result.');
+    }
+    expect(species.content[0]).toMatchObject({ type: 'text', text: expect.any(String) });
+
+    const resource = await client.readResource({ uri: 'bassanggum://catalog/species' });
+    expect(resource.contents[0]).toMatchObject({ mimeType: 'application/json', text: expect.any(String) });
   } finally {
     await client.close();
   }
