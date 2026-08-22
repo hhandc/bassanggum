@@ -22,14 +22,15 @@
 
 ## No-key source decision (current demo)
 
-The hackathon demo must be reproducible without an EcoBank API key. It will therefore use only the following supplied public source files; the authenticated EcoBank sync remains an optional later enhancement.
+The hackathon demo must be reproducible without an EcoBank API key. It will therefore use only the following three user-supplied public source files; the authenticated EcoBank sync remains an optional later enhancement.
 
 | Source | MVP use | Required provenance |
 |---|---|---|
-| `한국의 외래생물 분포현황` ecosystem-disturbing-organism integrated workbook (2016–2024) | All valid Gyeongbuk rows where `분류군명` is `어류` or `식물`; primary fish/plant occurrence evidence and the complete 15-species source-A catalogue. Each entry has an explicit policy, but only reviewed fish policy may permit official-event handling. | Preserve its source row `ID`, survey year, associated data.go.kr dataset link, file checksum, and the licence/attribution shown with the supplied workbook. |
+| `한국의 외래생물 분포현황` ecosystem-disturbing-organism integrated workbook (2016–2024) | All valid Gyeongbuk rows where `분류군명` is `어류` or `식물`; primary fish/plant occurrence evidence and the complete 15-species source-A catalogue. Each entry has an explicit policy, but only reviewed fish policy may permit official-event handling. | Dataset `RSD_0000000000012894`; [source record](https://www.nie-ecobank.kr/rdm/rsrchdoi/selectRsrchDtaDtlVw.do?rsrchDtaId=RSD_0000000000012894); preserve source row `ID`, survey year, file checksum, and the licence/attribution shown with the supplied workbook. |
 | NIE `외래생물_2015_2022` fish CSV | Gyeongbuk fish occurrence evidence for species already confirmed by the curated fish catalogue; it broadens historical coverage without making every alien fish a removal target. | Dataset `RSD_0000000000012824`; DOI `10.22756/ASD.20240000000888`; National Institute of Ecology; [source record](https://www.nie-ecobank.kr/rdm/rsrchdoi/selectRsrchDtaDtlVw.do?rsrchDtaId=RSD_0000000000012824); KOGL terms; UTF-8 CSV filename and checksum. |
+| NIE `외래식물_2015_2021` plant CSV | Gyeongbuk occurrence evidence for the 13 curated ecosystem-disturbing plant species. Other alien-plant rows remain out of the removal catalogue unless a reviewed policy is added. | Dataset `RSD_0000000000012705`; [source record](https://www.nie-ecobank.kr/rdm/rsrchdoi/selectRsrchDtaDtlVw.do?rsrchDtaId=RSD_0000000000012705); National Institute of Ecology; UTF-8 CSV filename, source row ID, file checksum, and licence wording verified from that record. |
 
-The import must retain both source records and their provenance in the public bundle. Before scoring, it must collapse only semantic cross-source duplicates (same normalized species, survey date/year, and coordinates rounded deterministically to six decimal places) so duplicate publication does not inflate a hotspot. Fish found only in the broader alien-fish CSV are observation-only until a reviewed catalogue entry explicitly grants a removal policy; they must not appear as bounty targets or receive removal/cooking guidance.
+The import must retain all three source records and their provenance in the public bundle. Before scoring, it must collapse only semantic cross-source duplicates (same normalized species, survey date/year, and coordinates rounded deterministically to six decimal places) so duplicate publication does not inflate a hotspot. Fish or plants found only in a broader alien-species CSV are observation-only until a reviewed catalogue entry explicitly grants a removal policy; they must not appear as bounty targets or receive removal/cooking guidance. The overlapping `외래식물상_2015_2023.csv` release is not ingested until its own matching source record is verified; it must not be attributed to `RSD_0000000000012705` by assumption.
 
 Neither current source supplies authoritative waterbody, forest/habitat, or protected-area geometry. The no-key demo must therefore emit transparent `unnamed_cell_cluster` action zones only; it must not invent named lakes, river segments, forests, restricted areas, or removal permission. The action-zone interface remains landform-capable for a later, separately attributed source or authenticated EcoBank import.
 
@@ -65,6 +66,39 @@ Run `pnpm demo:data`, focused importer/hotspot tests, full test, lint, typecheck
 ```bash
 git add data/raw packages/data-core/src packages/data-core/scripts packages/data-core/test
 git commit -m "feat: import no-key Gyeongbuk invasive species sources"
+```
+
+## Task 11: Add the third, source-attributed alien-plant dataset (execute after Task 7, before Task 8)
+
+**Files:**
+- Create: a checksum-verified Gyeongbuk snapshot of supplied `외래식물_2015_2021.csv` under `data/raw/demo/`
+- Modify: `data/raw/README.md`, source-preparation script, `packages/data-core/src/normalize.ts`, `packages/data-core/scripts/import-demo.ts`, hotspot/import/bundle tests
+
+**Interfaces:**
+- `pnpm demo:data` consumes all three committed snapshots without a key or download.
+- The source catalogue and every third-source plant occurrence preserve `RSD_0000000000012705` provenance.
+
+- [ ] **Step 1: Add failing third-source tests**
+
+Assert that Gyeongbuk records from `외래식물_2015_2021.csv` load with exact `RSD_0000000000012705` source provenance and checksum, and that only plant species already confirmed in the ecosystem-disturbing catalogue are published as platform species. Assert the source catalogue has all three dataset IDs and cross-source plant duplicates remain traceable but score once.
+
+- [ ] **Step 2: Add the attributed plant snapshot and audit**
+
+Use the standalone supplied `외래식물_2015_2021.csv` (columns `OBJECTID`, Korean/scientific names, survey year/date, WGS84 coordinates, province) as the third source. Filter valid Gyeongbuk rows using both label and local boundary. Commit a bounded raw snapshot and a documented audit count of rows outside the curated 13 ecosystem-disturbing plant species; preserve only source-verified licence wording. Do not ingest or attribute the overlapping `외래식물상_2015_2023.csv` until its own source record is confirmed.
+
+- [ ] **Step 3: Correct workbook provenance and import the third source**
+
+Replace the provisional workbook source metadata with dataset `RSD_0000000000012894` and its direct EcoBank record URL. Normalize source B fish and source C plants through the same strict location/date/provenance gate. Extend scoring-only semantic de-duplication to all three sources; keep every published record in the public bundle.
+
+- [ ] **Step 4: Regenerate and verify**
+
+Run `pnpm demo:data`, focused import/hotspot/bundle tests, full test, lint, typecheck, and build. Confirm all three source IDs appear in the generated source catalog, there are no invented habitat/restriction geometries, and the third source creates no unsafe removal advice.
+
+- [ ] **Step 5: Commit the third-source import**
+
+```bash
+git add data/raw packages/data-core/scripts packages/data-core/src packages/data-core/test
+git commit -m "feat: add attributed alien plant occurrence source"
 ```
 
 ---
