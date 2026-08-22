@@ -251,6 +251,20 @@ describe('demo snapshot import', () => {
     }
   });
 
+  it('clips a forest polygon crossing the Gyeongbuk boundary instead of dropping it', () => {
+    const output = execFileSync('python3', ['-c', [
+      'import importlib.util, json',
+      "spec = importlib.util.spec_from_file_location('prep', 'scripts/prepare-demo-snapshots.py')",
+      'module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)',
+      "polygon = [[[[129.45, 36.60], [129.75, 36.60], [129.75, 36.80], [129.45, 36.80], [129.45, 36.60]]]]",
+      'print(json.dumps(module.clip_polygons_to_gyeongbuk(polygon)))',
+    ].join('; ')], { cwd: workspaceRoot, encoding: 'utf8' });
+    const polygons = JSON.parse(output) as number[][][][];
+
+    expect(polygons).not.toHaveLength(0);
+    expect(geometryPositions(polygons).every(isWithinGyeongbuk)).toBe(true);
+  });
+
   it('regenerates the forest habitat snapshot from both complete EPSG:5179 shard bundles', () => {
     const directory = mkdtempSync(join(tmpdir(), 'bassanggum-forests-output-'));
     try {

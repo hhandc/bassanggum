@@ -648,6 +648,42 @@ def geometry_is_within_gyeongbuk(polygons: list[list[list[list[float]]]]) -> boo
     )
 
 
+def clip_polygons_to_gyeongbuk(polygons: list[list[list[list[float]]]]) -> list[list[list[list[float]]]]:
+    """Deterministically clip simple forest polygons to the committed boundary."""
+    boundary = [list(point) for point in GYEONGBUK_BOUNDARY[:-1]]
+    orientation = signed_ring_area(boundary + [boundary[0]])
+
+    def inside(point: list[float], start: list[float], end: list[float]) -> bool:
+        cross = (end[0] - start[0]) * (point[1] - start[1]) - (end[1] - start[1]) * (point[0] - start[0])
+        return cross >= -1e-12 if orientation >= 0 else cross <= 1e-12
+
+    def intersection(start: list[float], end: list[float], clip_start: list[float], clip_end: list[float]) -> list[float]:
+        denominator = (end[0] - start[0]) * (clip_end[1] - clip_start[1]) - (end[1] - start[1]) * (clip_end[0] - clip_start[0])
+        if abs(denominator) <= 1e-12:
+            return end
+        offset_x, offset_y = clip_start[0] - start[0], clip_start[1] - start[1]
+        fraction = (offset_x * (clip_end[1] - clip_start[1]) - offset_y * (clip_end[0] - clip_start[0])) / denominator
+        return [start[0] + (end[0] - start[0]) * fraction, start[1] + (end[1] - start[1]) * fraction]
+
+    clipped_polygons = []
+    for polygon in polygons:
+        original = polygon[0][:-1]
+        ring = []
+        for start, end in zip(original, original[1:] + [original[0]]):
+            if point_in_gyeongbuk(start):
+                ring.append(start)
+            for clip_start, clip_end in zip(boundary, boundary[1:] + [boundary[0]]):
+                cut = segment_intersection(start, end, tuple(clip_start), tuple(clip_end))
+                if cut is not None:
+                    # Nudge boundary cuts toward the interior so the shared
+                    # point-in-polygon gate remains deterministic.
+                    ring.append([(cut[0] * 999999 + start[0]) / 1000000, (cut[1] * 999999 + start[1]) / 1000000])
+        ring = [point for point in ring if point_in_gyeongbuk(point)]
+        if len(ring) >= 3:
+            clipped_polygons.append([ring + [ring[0]]])
+    return clipped_polygons
+
+
 def canonical_forest_geometry(geometry: dict[str, object]) -> str:
     """Canonicalize ring starts/directions and polygon ordering for deduplication."""
     def ring_key(ring: list[list[float]]) -> tuple[tuple[float, float], ...]:
@@ -883,7 +919,8 @@ def write_forest_snapshot(source_directory: Path = FOREST_DIRECTORY, output_dire
             source_records += 1
             if published_from_shard >= MAX_FOREST_FEATURES_PER_SHARD:
                 break
-            if not polygons or not geometry_is_within_gyeongbuk(polygons):
+            polygons = clip_polygons_to_gyeongbuk(polygons) if polygons else []
+            if not polygons:
                 excluded_outside_gyeongbuk_records += 1
                 continue
             geometry = {
@@ -939,7 +976,7 @@ def write_forest_snapshot(source_directory: Path = FOREST_DIRECTORY, output_dire
             'excludedOutsideGyeongbukRecords': excluded_outside_gyeongbuk_records,
             'deduplicatedOverlappingRecords': deduplicated_overlapping_records,
             'sourceProjection': 'EPSG:5179',
-            'filter': 'Forest map Polygon SHP shards 47_1 and 47_2; CP949 attributes; EPSG:5179 transformed to WGS84; full transformed geometry within committed Gyeongbuk boundary; 10 m projected-ring simplification; first 48 unique eligible features per shard.',
+            'filter': 'Forest map Polygon SHP shards 47_1 and 47_2; CP949 attributes; EPSG:5179 transformed to WGS84; deterministically clipped to committed Gyeongbuk boundary; 10 m projected-ring simplification; first 48 unique eligible features per shard.',
             'limitation': 'Forest geometry and forest-type/species attributes provide context only. They never create or change biological hotspot scores. MAP_LABEL is not a place name and no official place name is published.',
         },
     }

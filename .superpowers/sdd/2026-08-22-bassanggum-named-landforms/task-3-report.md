@@ -72,3 +72,6 @@ failure. Per parent instruction, no further dependency operations were run.
   and source-component checksum.
 - Forest geometry deduplication canonicalizes ring start, direction, and
   polygon ordering before comparison.
+- Boundary-crossing forest polygons are clipped after WGS84 reprojection;
+  the focused crossing fixture verifies a published nonempty geometry whose
+  vertices all pass the Gyeongbuk gate.
