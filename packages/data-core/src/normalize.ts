@@ -446,6 +446,37 @@ export function normalizeRiverLandformFeature(
   };
 }
 
+/** Forest map categories are sourced habitat context, never official place names. */
+export function normalizeForestLandformFeature(feature: unknown, source: DatasetSource): SuppliedLandform | null {
+  if (!isRecord(feature) || !isRecord(feature.properties) || source.datasetId !== 'GYEONGBUK-FOREST-HABITAT-47-2025') {
+    return null;
+  }
+
+  const sourceRecordId = nonEmptyString(feature.properties.sourceRecordId);
+  const forestType = nonEmptyString(feature.properties.FRTP_NM);
+  const dominantSpecies = nonEmptyString(feature.properties.KOFTR_NM);
+  const updatedYear = typeof feature.properties.updatedYear === 'string' ? feature.properties.updatedYear.trim() : null;
+  const geometry = AreaGeometrySchema.safeParse(feature.geometry);
+  if (
+    sourceRecordId === null ||
+    forestType === null ||
+    dominantSpecies === null ||
+    updatedYear === null ||
+    !geometry.success ||
+    !hasOnlyGyeongbukPositions(geometry.data)
+  ) {
+    return null;
+  }
+
+  return {
+    id: `forest:${source.datasetId}:${sourceRecordId}`,
+    name: `${forestType} · ${dominantSpecies}`,
+    kind: 'forest_habitat',
+    sourceAttributes: { FRTP_NM: forestType, KOFTR_NM: dominantSpecies, updatedYear },
+    geometry: geometry.data,
+  };
+}
+
 function readSnapshot(path: string): { source: DatasetSource; records: unknown[] } {
   const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'));
   if (!isRecord(parsed) || !Array.isArray(parsed.records)) {
@@ -508,6 +539,7 @@ export function importDemoSnapshots(inputDirectory: string): PublicDataBundle {
   const kdpaBoundaries = readHabitatSnapshot(join(inputDirectory, 'kdpa-protected-areas-oecm-gyeongbuk-2025.geojson'));
   const lakes = readHabitatSnapshot(join(inputDirectory, 'national-base-map-lakes-gyeongbuk-2024.geojson'));
   const rivers = readHabitatSnapshot(join(inputDirectory, 'national-base-map-rivers-gyeongbuk-2024.geojson'));
+  const forests = readHabitatSnapshot(join(inputDirectory, 'gyeongbuk-forest-habitat-zones-2025.geojson'));
   const catalogue = readCatalogSnapshot(join(inputDirectory, 'species-catalog.json'));
   const importRun: ImportRun = {
     id: 'gyeongbuk-no-key-import-v1',
@@ -551,6 +583,10 @@ export function importDemoSnapshots(inputDirectory: string): PublicDataBundle {
     const river = normalizeRiverLandformFeature(feature, rivers.source);
     return river === null ? [] : [river];
   });
+  const forestLandforms = forests.features.flatMap((feature) => {
+    const forest = normalizeForestLandformFeature(feature, forests.source);
+    return forest === null ? [] : [forest];
+  });
 
   return PublicDataBundleSchema.parse({
     species: cataloguedSpecies,
@@ -568,7 +604,7 @@ export function importDemoSnapshots(inputDirectory: string): PublicDataBundle {
         verifiedCommunitySignals: [],
         verifiedEvents: [],
       }),
-      [...lakeLandforms, ...riverLandforms],
+      [...lakeLandforms, ...riverLandforms, ...forestLandforms],
     ),
   });
 }

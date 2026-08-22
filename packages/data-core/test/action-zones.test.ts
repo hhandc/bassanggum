@@ -109,6 +109,36 @@ describe('createActionZones', () => {
     expect(zones[0]).not.toHaveProperty('removalAuthorized');
   });
 
+  it('uses forest type and dominant species as sourced habitat context without treating them as a place name', () => {
+    const boundary = cellToBoundary(h3Index, true);
+    const longitudes = boundary.map(([longitude]) => longitude);
+    const latitudes = boundary.map(([, latitude]) => latitude);
+    const zones = createActionZones([hotspotCell(h3Index)], [
+      {
+        id: 'fixture-forest',
+        name: '침엽수림 · 곰솔',
+        kind: 'forest_habitat',
+        sourceAttributes: { FRTP_NM: '침엽수림', KOFTR_NM: '곰솔', updatedYear: '2017' },
+        geometry: {
+          type: 'Polygon',
+          coordinates: [[
+            [Math.min(...longitudes) - 0.001, Math.min(...latitudes) - 0.001],
+            [Math.max(...longitudes) + 0.001, Math.min(...latitudes) - 0.001],
+            [Math.max(...longitudes) + 0.001, Math.max(...latitudes) + 0.001],
+            [Math.min(...longitudes) - 0.001, Math.max(...latitudes) + 0.001],
+            [Math.min(...longitudes) - 0.001, Math.min(...latitudes) - 0.001],
+          ]],
+        },
+      },
+    ]);
+
+    expect(zones[0]).toMatchObject({
+      kind: 'forest_habitat',
+      name: '침엽수림 · 곰솔',
+      sourceAttributes: { FRTP_NM: '침엽수림', KOFTR_NM: '곰솔', updatedYear: '2017' },
+    });
+  });
+
   it('splits a supplied river line into deterministic two-kilometre reaches with per-reach cell evidence', () => {
     const riverCells = [
       hotspotCell(latLngToCell(36.5715, 128.565, 8), 'lepomis-macrochirus', 11),

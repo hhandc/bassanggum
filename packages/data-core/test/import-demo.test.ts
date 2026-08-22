@@ -12,6 +12,7 @@ const workspaceRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const kdpaSourceDirectory = '/Users/hyeonhongchang/Downloads/2025_ver';
 const lakeSourceDirectory = '/Users/hyeonhongchang/Downloads/N3A_E0052114';
 const riverSourceDirectory = '/Users/hyeonhongchang/Downloads/N3L_E0020000';
+const forestSourceDirectory = '/Users/hyeonhongchang/Downloads/47';
 
 function withCopiedDemoSnapshots(test: (directory: string) => void): void {
   const directory = mkdtempSync(join(tmpdir(), 'bassanggum-demo-'));
@@ -49,6 +50,99 @@ function generateRiverSnapshot(sourceDirectory: string, outputDirectory: string)
     stdio: 'pipe',
   });
   return JSON.parse(readFileSync(join(outputDirectory, 'national-base-map-rivers-gyeongbuk-2024.geojson'), 'utf8')) as ReturnType<typeof rawFeatureSnapshot>;
+}
+
+function generateForestSnapshot(sourceDirectory: string, outputDirectory: string): ReturnType<typeof rawFeatureSnapshot> {
+  execFileSync('python3', ['scripts/prepare-demo-snapshots.py', '--forests-only', sourceDirectory, outputDirectory], {
+    cwd: workspaceRoot,
+    stdio: 'pipe',
+  });
+  return JSON.parse(readFileSync(join(outputDirectory, 'gyeongbuk-forest-habitat-zones-2025.geojson'), 'utf8')) as ReturnType<typeof rawFeatureSnapshot>;
+}
+
+function writeForestFixtureSource(directory: string): void {
+  const projection = 'PROJCS["KGD2002_Unified_Coordinate_System",PARAMETER["Central_Meridian",127.5]]';
+  const cp949 = (value: string) => Buffer.from({
+    '갱신년도': 'b0bbbdc5b3e2b5b5',
+    '침엽수림': 'c4a7bfb1bcf6b8b2',
+    '곰솔': 'b0f5bcd6',
+  }[value] ?? Buffer.from(value).toString('hex'), 'hex');
+  const fields = [
+    ['FRTP_CD', 8],
+    ['FRTP_NM', 120],
+    ['KOFTR_GROU', 8],
+    ['KOFTR_NM', 120],
+    ['갱신년도', 8],
+  ] as const;
+  const rowLength = 1 + fields.reduce((total, [, length]) => total + length, 0);
+  const headerLength = 32 + fields.length * 32 + 1;
+  const dbf = Buffer.alloc(headerLength + rowLength * 2 + 1);
+  dbf[0] = 3;
+  dbf.writeUInt32LE(2, 4);
+  dbf.writeUInt16LE(headerLength, 8);
+  dbf.writeUInt16LE(rowLength, 10);
+  fields.forEach(([name, length], index) => {
+    const offset = 32 + index * 32;
+    cp949(name).copy(dbf, offset);
+    dbf[offset + 11] = 'C'.charCodeAt(0);
+    dbf[offset + 16] = length;
+  });
+  dbf[32 + fields.length * 32] = 0x0d;
+  for (let record = 0; record < 2; record += 1) {
+    let offset = headerLength + record * rowLength;
+    dbf[offset] = 0x20;
+    offset += 1;
+    for (const [value, length] of [['1', 8], ['침엽수림', 120], ['15', 8], ['곰솔', 120], ['2017', 8]] as const) {
+      cp949(value).copy(dbf, offset);
+      offset += length;
+    }
+  }
+  dbf[dbf.length - 1] = 0x1a;
+
+  const points = [
+    [1_176_220, 1_861_390], [1_176_360, 1_861_390], [1_176_360, 1_861_520], [1_176_220, 1_861_520], [1_176_220, 1_861_390],
+  ];
+  const createShp = (records: readonly (readonly (readonly number[])[])[]) => {
+    const contents = records.map((record) => {
+      const content = Buffer.alloc(128);
+      const longitudes = record.map(([longitude]) => longitude!);
+      const latitudes = record.map(([, latitude]) => latitude!);
+      content.writeInt32LE(5, 0);
+      content.writeDoubleLE(Math.min(...longitudes), 4);
+      content.writeDoubleLE(Math.min(...latitudes), 12);
+      content.writeDoubleLE(Math.max(...longitudes), 20);
+      content.writeDoubleLE(Math.max(...latitudes), 28);
+      content.writeInt32LE(1, 36);
+      content.writeInt32LE(record.length, 40);
+      content.writeInt32LE(0, 44);
+      record.forEach(([longitude, latitude], index) => {
+        content.writeDoubleLE(longitude!, 48 + index * 16);
+        content.writeDoubleLE(latitude!, 56 + index * 16);
+      });
+      return content;
+    });
+    const shp = Buffer.alloc(100 + contents.reduce((total, content) => total + 8 + content.length, 0));
+    shp.writeInt32BE(9994, 0);
+    shp.writeInt32BE(shp.length / 2, 24);
+    shp.writeInt32LE(1000, 28);
+    shp.writeInt32LE(5, 32);
+    let offset = 100;
+    contents.forEach((content, index) => {
+      shp.writeInt32BE(index + 1, offset);
+      shp.writeInt32BE(content.length / 2, offset + 4);
+      content.copy(shp, offset + 8);
+      offset += 8 + content.length;
+    });
+    return shp;
+  };
+  const shiftedPoints = points.map(([longitude, latitude]) => [longitude + 500, latitude]);
+
+  for (const shard of ['47_1', '47_2']) {
+    writeFileSync(join(directory, `${shard}.dbf`), dbf);
+    writeFileSync(join(directory, `${shard}.shp`), createShp(shard === '47_1' ? [points, points] : [points, shiftedPoints]));
+    writeFileSync(join(directory, `${shard}.prj`), projection);
+    writeFileSync(join(directory, `${shard}.shx`), Buffer.alloc(100));
+  }
 }
 
 function withCopiedKdpaSourceBundle(test: (sourceDirectory: string, outputDirectory: string) => void): void {
@@ -116,6 +210,61 @@ function lineLengthMetres(coordinates: unknown): number {
 }
 
 describe('demo snapshot import', () => {
+  it('keeps simplified Gyeongbuk forest habitat geometry from both shards with source forest attributes and no official place names', () => {
+    const snapshot = rawFeatureSnapshot('gyeongbuk-forest-habitat-zones-2025.geojson');
+
+    expect(snapshot.features).not.toHaveLength(0);
+    expect(new Set(snapshot.features.map((feature) => feature.properties.sourceShard))).toEqual(new Set(['47_1', '47_2']));
+    expect(snapshot.features.every((feature) => feature.geometry.type === 'Polygon' || feature.geometry.type === 'MultiPolygon')).toBe(true);
+    expect(snapshot.features.every((feature) => geometryPositions(feature.geometry.coordinates).every(isWithinGyeongbuk))).toBe(true);
+    expect(snapshot.features.every((feature) =>
+      typeof feature.properties.sourceRecordId === 'string' &&
+      typeof feature.properties.FRTP_NM === 'string' && feature.properties.FRTP_NM.trim() !== '' &&
+      typeof feature.properties.KOFTR_NM === 'string' && feature.properties.KOFTR_NM.trim() !== '' &&
+      typeof feature.properties.updatedYear === 'string',
+    )).toBe(true);
+    expect(snapshot.features.every((feature) => !('name' in feature.properties) || feature.properties.nameSource === 'derived')).toBe(true);
+    expect(snapshot.source).toMatchObject({
+      datasetId: 'GYEONGBUK-FOREST-HABITAT-47-2025',
+      sourceFileChecksum: expect.stringMatching(/^sha256:/),
+    });
+    expect(snapshot.audit).toMatchObject({
+      sourceShards: ['47_1', '47_2'],
+      sourceProjection: 'EPSG:5179',
+      deduplicatedOverlappingRecords: expect.any(Number),
+    });
+  });
+
+  it('deduplicates controlled overlapping forest polygons across source shards', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'bassanggum-forest-fixture-'));
+    const outputDirectory = join(directory, 'output');
+    mkdirSync(outputDirectory);
+    try {
+      writeForestFixtureSource(directory);
+      const snapshot = generateForestSnapshot(directory, outputDirectory);
+
+      expect(snapshot.features).toHaveLength(2);
+      expect(new Set(snapshot.features.map((feature) => feature.properties.sourceShard))).toEqual(new Set(['47_1', '47_2']));
+      expect(snapshot.audit).toMatchObject({ deduplicatedOverlappingRecords: 2 });
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
+  it('regenerates the forest habitat snapshot from both complete EPSG:5179 shard bundles', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'bassanggum-forests-output-'));
+    try {
+      const regenerated = generateForestSnapshot(forestSourceDirectory, directory);
+      const committed = rawFeatureSnapshot('gyeongbuk-forest-habitat-zones-2025.geojson');
+
+      expect(regenerated.source.sourceFileChecksum).toBe(committed.source.sourceFileChecksum);
+      expect(regenerated.source.checksum).toBe(committed.source.checksum);
+      expect(regenerated.features).toHaveLength(committed.features.length);
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  }, 60_000);
+
   it('keeps only named, Gyeongbuk-clipped EPSG:5179 lake polygons with source provenance', () => {
     const snapshot = rawFeatureSnapshot('national-base-map-lakes-gyeongbuk-2024.geojson');
 

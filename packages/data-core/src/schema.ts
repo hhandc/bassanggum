@@ -259,6 +259,7 @@ export const ActionZoneEvidenceSchema = z
 
 export const ActionZoneKindSchema = z.enum(['lake', 'river_segment', 'forest_habitat', 'unnamed_cell_cluster']);
 const NamedActionZoneKindSchema = z.enum(['lake', 'river_segment', 'forest_habitat']);
+const LandformSourceAttributesSchema = z.record(z.string(), z.string());
 
 const ActionZoneBaseSchema = z
   .object({
@@ -273,7 +274,7 @@ const ActionZoneBaseSchema = z
 
 export const ActionZoneSchema = z.discriminatedUnion('kind', [
   ActionZoneBaseSchema.extend({ kind: z.literal('unnamed_cell_cluster') }),
-  ActionZoneBaseSchema.extend({ kind: NamedActionZoneKindSchema, name: NonEmptyString }),
+  ActionZoneBaseSchema.extend({ kind: NamedActionZoneKindSchema, name: NonEmptyString, sourceAttributes: LandformSourceAttributesSchema.optional() }),
 ]).superRefine((zone, context) => {
   if (new Set(zone.sourceCellIds).size !== zone.sourceCellIds.length) {
     context.addIssue({ code: z.ZodIssueCode.custom, message: 'Action-zone source H3 cell IDs must be unique.' });
@@ -291,6 +292,7 @@ const SuppliedLandformBaseSchema = z
   .object({
     id: NonEmptyString,
     name: NonEmptyString,
+    sourceAttributes: LandformSourceAttributesSchema.optional(),
   })
   .strict();
 

@@ -19,11 +19,13 @@ type PreparedLandform = {
   kind: 'lake' | 'river_segment' | 'forest_habitat';
   geometry: AreaGeometry | RiverReachGeometry;
   bounds: Bounds;
+  sourceAttributes?: Record<string, string> | undefined;
 };
 type Bounds = { minLongitude: number; minLatitude: number; maxLongitude: number; maxLatitude: number };
 type ZoneDraft = {
   kind: ActionZone['kind'];
   name?: string;
+  sourceAttributes?: Record<string, string> | undefined;
   id: string;
   speciesId: string;
   cells: HotspotCell[];
@@ -66,6 +68,7 @@ export function createActionZones(cells: readonly HotspotCell[], landforms: read
         id: `action-zone:${landform.id}:${speciesId}`,
         kind: landform.kind,
         name: landform.name,
+        ...(landform.sourceAttributes === undefined ? {} : { sourceAttributes: landform.sourceAttributes }),
         speciesId,
         cells: matchingCells,
       } satisfies ZoneDraft;
@@ -283,6 +286,7 @@ function createZone(draft: ZoneDraft): ActionZone {
     id: draft.id,
     kind: draft.kind,
     ...(draft.name === undefined ? {} : { name: draft.name }),
+    ...(draft.sourceAttributes === undefined ? {} : { sourceAttributes: draft.sourceAttributes }),
     speciesId: draft.speciesId,
     score: cells.reduce((total, cell) => total + cell.score, 0),
     sourceCellIds: cells.map((cell) => cell.h3Index),

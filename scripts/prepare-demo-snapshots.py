@@ -39,6 +39,10 @@ LAKE_SHAPEFILE = LAKE_DIRECTORY / 'N3A_E0052114.shp'
 RIVER_SNAPSHOT = 'national-base-map-rivers-gyeongbuk-2024.geojson'
 RIVER_DIRECTORY = DOWNLOADS / 'N3L_E0020000'
 RIVER_SHAPEFILE = RIVER_DIRECTORY / 'N3L_E0020000.shp'
+FOREST_SNAPSHOT = 'gyeongbuk-forest-habitat-zones-2025.geojson'
+FOREST_DIRECTORY = DOWNLOADS / '47'
+FOREST_SHARDS = ('47_1', '47_2')
+MAX_FOREST_FEATURES_PER_SHARD = 48
 MAX_RIVER_REACH_LENGTH_METRES = 2000.0
 # Conservative projected envelope around the committed Gyeongbuk boundary.
 # It is only an early-out; every published vertex still passes the WGS84 gate.
@@ -80,7 +84,11 @@ def discover_inputs() -> tuple[Path, Path, Path]:
 
 
 def sha256_file(path: Path) -> str:
-    return f"sha256:{hashlib.sha256(path.read_bytes()).hexdigest()}"
+    digest = hashlib.sha256()
+    with path.open('rb') as source_file:
+        while chunk := source_file.read(1024 * 1024):
+            digest.update(chunk)
+    return f"sha256:{digest.hexdigest()}"
 
 
 def component_checksum(paths: tuple[Path, ...]) -> str:
@@ -199,7 +207,7 @@ def dbf_row_iterator(path: Path):
             field = source_file.read(32)
             if field[0] == 0x0D:
                 break
-            fields.append((field[:11].split(b'\0', 1)[0].decode('ascii'), chr(field[11]), field[16]))
+            fields.append((field[:11].split(b'\0', 1)[0].decode('cp949'), chr(field[11]), field[16]))
         source_file.seek(header_length)
         for _ in range(record_count):
             record = source_file.read(record_length)
@@ -830,16 +838,113 @@ def write_river_snapshot(source_directory: Path = RIVER_DIRECTORY, output_direct
     )
 
 
+def write_forest_snapshot(source_directory: Path = FOREST_DIRECTORY, output_directory: Path = OUTPUT_DIRECTORY) -> None:
+    """Create a small, deterministic forest-habitat context layer from both shards.
+
+    MAP_LABEL is a map-sheet identifier, not a place name.  The forest map has
+    no place-name authority, so published features deliberately omit `name`.
+    """
+    source_components: list[Path] = []
+    features = []
+    seen_geometries: set[str] = set()
+    source_records = 0
+    excluded_outside_gyeongbuk_records = 0
+    deduplicated_overlapping_records = 0
+    for shard in FOREST_SHARDS:
+        shapefile = source_directory / f'{shard}.shp'
+        dbf = shapefile.with_suffix('.dbf')
+        projection = shapefile.with_suffix('.prj')
+        index = shapefile.with_suffix('.shx')
+        projection_text = projection.read_text(encoding='ascii')
+        if 'KGD2002_Unified_Coordinate_System' not in projection_text or 'Central_Meridian",127.5' not in projection_text:
+            raise ValueError('Forest habitat source projection must be EPSG:5179.')
+        source_components.extend((shapefile, dbf, projection, index))
+        published_from_shard = 0
+        for record_number, (row, polygons) in enumerate(zip_longest(dbf_row_iterator(dbf), epsg5179_polygon_records(shapefile)), 1):
+            if row is None and polygons is None:
+                continue
+            if row is None or polygons is None:
+                raise ValueError('Forest habitat SHP and DBF record counts differ.')
+            source_records += 1
+            if published_from_shard >= MAX_FOREST_FEATURES_PER_SHARD:
+                break
+            if not polygons or not geometry_is_within_gyeongbuk(polygons):
+                excluded_outside_gyeongbuk_records += 1
+                continue
+            geometry = {
+                'type': 'Polygon' if len(polygons) == 1 else 'MultiPolygon',
+                'coordinates': polygons[0] if len(polygons) == 1 else polygons,
+            }
+            geometry_key = json.dumps(geometry, ensure_ascii=False, separators=(',', ':'))
+            if geometry_key in seen_geometries:
+                deduplicated_overlapping_records += 1
+                continue
+            forest_type = str(row['FRTP_NM']).strip()
+            dominant_species = str(row['KOFTR_NM']).strip()
+            if not forest_type or not dominant_species:
+                continue
+            seen_geometries.add(geometry_key)
+            features.append({
+                'type': 'Feature',
+                'properties': {
+                    'sourceRecordId': f'{shard}:{record_number:06d}',
+                    'sourceShard': shard,
+                    'FRTP_CD': str(row['FRTP_CD']).strip(),
+                    'FRTP_NM': forest_type,
+                    'KOFTR_GROU': str(row['KOFTR_GROU']).strip(),
+                    'KOFTR_NM': dominant_species,
+                    'updatedYear': str(row['갱신년도']).strip(),
+                },
+                'geometry': geometry,
+            })
+            published_from_shard += 1
+        if published_from_shard == 0:
+            raise ValueError(f'Forest habitat shard {shard} did not yield a Gyeongbuk feature.')
+
+    features.sort(key=lambda feature: str(feature['properties']['sourceRecordId']))
+    source = {
+        'datasetId': 'GYEONGBUK-FOREST-HABITAT-47-2025',
+        'title': 'Gyeongbuk forest-habitat polygons (47_1 and 47_2)',
+        'provider': 'Korea Forest Service',
+        'sourceUrl': 'https://map.forest.go.kr/',
+        'licence': 'Source licence terms were not supplied with the forest-map shapefiles.',
+        'attribution': 'Korea Forest Service, Gyeongbuk forest map shards 47_1 and 47_2.',
+        'snapshotFilename': FOREST_SNAPSHOT,
+        'sourceFileChecksum': component_checksum(tuple(source_components)),
+        'checksum': json_payload_checksum(features),
+    }
+    payload = {
+        'type': 'FeatureCollection',
+        'source': source,
+        'features': features,
+        'audit': {
+            'sourceShards': list(FOREST_SHARDS),
+            'sourceRecordsRead': source_records,
+            'publishedRecords': len(features),
+            'excludedOutsideGyeongbukRecords': excluded_outside_gyeongbuk_records,
+            'deduplicatedOverlappingRecords': deduplicated_overlapping_records,
+            'sourceProjection': 'EPSG:5179',
+            'filter': 'Forest map Polygon SHP shards 47_1 and 47_2; CP949 attributes; EPSG:5179 transformed to WGS84; full transformed geometry within committed Gyeongbuk boundary; 10 m projected-ring simplification; first 48 unique eligible features per shard.',
+            'limitation': 'Forest geometry and forest-type/species attributes provide context only. They never create or change biological hotspot scores. MAP_LABEL is not a place name and no official place name is published.',
+        },
+    }
+    (output_directory / FOREST_SNAPSHOT).write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8'
+    )
+
+
 def main() -> None:
     if len(sys.argv) > 1:
-        if len(sys.argv) != 4 or sys.argv[1] not in {'--kdpa-only', '--lakes-only', '--rivers-only'}:
-            raise SystemExit('Usage: prepare-demo-snapshots.py [--kdpa-only|--lakes-only|--rivers-only <source-directory> <output-directory>]')
+        if len(sys.argv) != 4 or sys.argv[1] not in {'--kdpa-only', '--lakes-only', '--rivers-only', '--forests-only'}:
+            raise SystemExit('Usage: prepare-demo-snapshots.py [--kdpa-only|--lakes-only|--rivers-only|--forests-only <source-directory> <output-directory>]')
         if sys.argv[1] == '--kdpa-only':
             write_kdpa_snapshot(Path(sys.argv[2]), Path(sys.argv[3]))
         elif sys.argv[1] == '--lakes-only':
             write_lake_snapshot(Path(sys.argv[2]), Path(sys.argv[3]))
-        else:
+        elif sys.argv[1] == '--rivers-only':
             write_river_snapshot(Path(sys.argv[2]), Path(sys.argv[3]))
+        else:
+            write_forest_snapshot(Path(sys.argv[2]), Path(sys.argv[3]))
         return
 
     workbook_path, csv_path, plant_csv_path = discover_inputs()
@@ -893,6 +998,7 @@ def main() -> None:
     write_kdpa_snapshot()
     write_lake_snapshot()
     write_river_snapshot()
+    write_forest_snapshot()
     accepted_names = {'배스', '블루길'}
     rejected = [row for row in nie_rows if row.get('한글보통명') not in accepted_names]
     write_snapshot(
