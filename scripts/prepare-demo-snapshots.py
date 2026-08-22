@@ -12,6 +12,7 @@ import csv
 import hashlib
 import json
 import math
+import os
 import sys
 import unicodedata
 from itertools import zip_longest

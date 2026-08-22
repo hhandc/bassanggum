@@ -157,6 +157,85 @@ function writeForestFixtureSource(directory: string): void {
   }
 }
 
+function writeKdpaFixtureSource(directory: string): void {
+  const projection = 'GEOGCS["WGS 1984",DATUM["D_WGS_1984"],PRIMEM["Greenwich",0],UNIT["Degree",0.017453292519943295]]';
+  const fields = [
+    ['WDPA_PID', 20],
+    ['NAME', 254],
+    ['ORIG_NAME', 254],
+    ['DESIG', 100],
+    ['SUB_LOC', 20],
+  ] as const;
+  const rowLength = 1 + fields.reduce((total, [, length]) => total + length, 0);
+  const headerLength = 32 + fields.length * 32 + 1;
+  const dbf = Buffer.alloc(headerLength + rowLength + 1);
+  dbf[0] = 3;
+  dbf.writeUInt32LE(1, 4);
+  dbf.writeUInt16LE(headerLength, 8);
+  dbf.writeUInt16LE(rowLength, 10);
+  fields.forEach(([name, length], index) => {
+    const offset = 32 + index * 32;
+    Buffer.from(name).copy(dbf, offset);
+    dbf[offset + 11] = 'C'.charCodeAt(0);
+    dbf[offset + 16] = length;
+  });
+  dbf[32 + fields.length * 32] = 0x0d;
+  let offset = headerLength;
+  dbf[offset] = 0x20;
+  offset += 1;
+  for (const [value, length] of [['TEST-001', 20], ['Test Protected Area', 254], ['Test Original Name', 254], ['Protected Area', 100], ['KR-47', 20]] as const) {
+    const valueBuffer = Buffer.from(value.padEnd(length, ' '), 'ascii');
+    valueBuffer.copy(dbf, offset);
+    offset += length;
+  }
+  dbf[dbf.length - 1] = 0x1a;
+
+  const points: Array<[number, number]> = [
+    [128.5, 36.5], [128.6, 36.5], [128.6, 36.6], [128.5, 36.6], [128.5, 36.5],
+  ];
+  const createShpContent = (records: readonly (readonly (readonly number[])[])[]) => {
+    const contents = records.map((record) => {
+      const longitudes = record.map(([longitude]) => longitude!);
+      const latitudes = record.map(([, latitude]) => latitude!);
+      const content = Buffer.alloc(48 + record.length * 16);
+      content.writeInt32LE(5, 0);
+      content.writeDoubleLE(Math.min(...longitudes), 4);
+      content.writeDoubleLE(Math.min(...latitudes), 12);
+      content.writeDoubleLE(Math.max(...longitudes), 20);
+      content.writeDoubleLE(Math.max(...latitudes), 28);
+      content.writeInt32LE(1, 36);
+      content.writeInt32LE(record.length, 40);
+      content.writeInt32LE(0, 44);
+      record.forEach(([longitude, latitude], index) => {
+        content.writeDoubleLE(longitude!, 48 + index * 16);
+        content.writeDoubleLE(latitude!, 48 + index * 16 + 8);
+      });
+      return content;
+    });
+    const shp = Buffer.alloc(100 + contents.reduce((total, content) => total + 8 + content.length, 0));
+    shp.writeInt32BE(9994, 0);
+    shp.writeInt32BE(shp.length / 2, 24);
+    shp.writeInt32LE(1000, 28);
+    shp.writeInt32LE(5, 32);
+    let offset = 100;
+    contents.forEach((content, index) => {
+      shp.writeInt32BE(index + 1, offset);
+      shp.writeInt32BE(content.length / 2, offset + 4);
+      content.copy(shp, offset + 8);
+      offset += 8 + content.length;
+    });
+    return shp;
+  };
+  const shp = createShpContent([points]);
+
+  const base = 'Protected_areas_OECM_Republic_of_Korea_ver_2025';
+  writeFileSync(join(directory, `${base}.dbf`), dbf);
+  writeFileSync(join(directory, `${base}.shp`), shp);
+  writeFileSync(join(directory, `${base}.prj`), projection);
+  writeFileSync(join(directory, `${base}.shx`), Buffer.alloc(100));
+  writeFileSync(join(directory, `${base}.cpg`), 'CP949');
+}
+
 function withCopiedKdpaSourceBundle(test: (sourceDirectory: string, outputDirectory: string) => void): void {
   if (!existsSync(kdpaSourceDirectory)) {
     return;
@@ -398,6 +477,43 @@ describe('demo snapshot import', () => {
       sourceFileChecksum: expect.stringMatching(/^sha256:/),
     });
     expect(snapshot.features[0]?.properties.sourceRecordId).toEqual(expect.any(String));
+  });
+
+  it('regenerates a KDPA snapshot from a fixture and detects DBF tampering', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'bassanggum-kdpa-fixture-'));
+    const sourceDirectory = join(directory, 'source');
+    const outputDirectory = join(directory, 'output');
+    mkdirSync(sourceDirectory);
+    mkdirSync(outputDirectory);
+    try {
+      writeKdpaFixtureSource(sourceDirectory);
+      const original = generateKdpaSnapshot(sourceDirectory, outputDirectory);
+
+      expect(original.features).toHaveLength(1);
+      expect(original.features[0]).toMatchObject({
+        properties: expect.objectContaining({
+          sourceRecordId: 'TEST-001',
+          name: 'Test Protected Area',
+          subLocation: 'KR-47',
+        }),
+        geometry: expect.objectContaining({ type: 'Polygon' }),
+      });
+
+      const dbfPath = join(sourceDirectory, 'Protected_areas_OECM_Republic_of_Korea_ver_2025.dbf');
+      const dbf = readFileSync(dbfPath);
+      const originalName = Buffer.from('Test Protected Area', 'ascii');
+      const offset = dbf.indexOf(originalName);
+      expect(offset).toBeGreaterThanOrEqual(0);
+      dbf[offset] = 'X'.charCodeAt(0);
+      writeFileSync(dbfPath, dbf);
+
+      const regenerated = generateKdpaSnapshot(sourceDirectory, outputDirectory);
+
+      expect(regenerated.source.sourceFileChecksum).not.toBe(original.source.sourceFileChecksum);
+      expect(regenerated.features[0]?.properties.name).toBe('Xest Protected Area');
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
   });
 
   it('regenerates KDPA provenance when only the DBF component is tampered with', () => {
