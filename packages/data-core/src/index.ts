@@ -6,3 +6,4 @@ export * from './schema.js';
 export * from './catalog.js';
 export * from './hotspots.js';
 export * from './action-zones.js';
+export * from './bundle.js';
