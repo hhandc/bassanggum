@@ -58,6 +58,9 @@ export const DatasetSourceSchema = z
     attribution: NonEmptyString,
     snapshotFilename: NonEmptyString,
     checksum: NonEmptyString,
+    doi: NonEmptyString.optional(),
+    publishedAt: NonEmptyString.optional(),
+    sourceFileChecksum: NonEmptyString.optional(),
   })
   .strict();
 
@@ -78,6 +81,10 @@ export const OfficialProvenanceSchema = z
     attribution: NonEmptyString,
     importRunId: NonEmptyString,
     sourceRecordId: NonEmptyString,
+    doi: NonEmptyString.optional(),
+    publishedAt: NonEmptyString.optional(),
+    snapshotChecksum: NonEmptyString.optional(),
+    sourceFileChecksum: NonEmptyString.optional(),
   })
   .strict();
 

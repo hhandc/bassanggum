@@ -1,23 +1,52 @@
-# Raw ecological-source snapshots
+# Bounded raw ecological-source snapshots
 
-`data/raw/demo/` is a deliberately tiny, repository-authored demonstration input: one fish occurrence, one plant occurrence, and one habitat polygon. It is **not** an EcoBank export, does not reproduce official source rows, and must never be described as unmodified official raw data. The field shapes and the provider reference are intended only to exercise the normalizer without credentials.
+`data/raw/demo/` contains the actual, bounded Gyeongbuk rows used by the
+credential-free demo. It does not contain the full external downloads, and it
+does not contain repository-authored EcoBank-like occurrence or habitat data.
+The imported records are source snapshots, not official API exports.
 
-## Attribution and licence
+| Snapshot | Source and publisher | Coverage and exact filter | Integrity |
+| --- | --- | --- | --- |
+| `ecosystem-disturbing-organisms-gyeongbuk-2016-2024.json` | [data.go.kr dataset 15022461](https://www.data.go.kr/data/15022461/fileData.do), supplied ecosystem-disturbing-organism workbook. The original publisher is not identified in the supplied workbook or its data-description workbook. | 2016–2024; `시도명=경상북도`, `분류군명=어류|식물`, valid WGS84 coordinates. 4,780 retained source rows. | Full supplied workbook: `sha256:090f97e42d3157cb37b4cb68a1d548f03387f3d2f77c27af10c9704fe6c570f9`; committed snapshot file: `sha256:d6fea5a54c5827e494631c26f8d4f1a462aaebcf272b6554fefdfd2f8e41dddb`. |
+| `nie-alien-fish-gyeongbuk-2015-2022.json` | National Institute of Ecology (국립생태원), [외래생물_2015_2022 record](https://www.nie-ecobank.kr/rdm/rsrchdoi/selectRsrchDtaDtlVw.do?rsrchDtaId=RSD_0000000000012824), dataset `RSD_0000000000012824`, DOI `10.22756/ASD.20240000000888`, published 2024-09-20. | 2015–2022; `시도명=경상북도`, valid WGS84 coordinates. 251 retained source rows. | UTF-8-sig supplied CSV: `sha256:f606443c122380949f9785876b60c48762f88e3f4cf8c8e6101f9eceb5628558`; committed snapshot file: `sha256:2c6038dc1243d0c53f58a35ed32f34432e23ec4c52bbc1bce537f8c5453dc878`. |
 
-Each demo file carries its own provenance manifest. The fixture content is authored for this repository under **CC0-1.0**. Its reference source is [National Institute of Ecology EcoBank](https://www.nie-ecobank.kr/); attribution in derived demo records is `Bassanggum synthetic EcoBank-like fixture; EcoBank referenced (National Institute of Ecology)`. The reference link identifies the inspiration for the field vocabulary only; no EcoBank licence is asserted for these synthetic rows.
+## Licence and attribution
 
-For production imports, preserve the exact source dataset ID, source URL, provider-required attribution, and licence statement from the downloaded data. Do not replace them with this demo's metadata. Check the production provider's current licence and redistribution terms before committing any snapshot.
+The supplied data.go.kr workbook and data-description workbook did not state an
+exact redistribution licence. The snapshot therefore records that fact rather
+than inferring a licence; check the linked data.go.kr record before wider
+redistribution. The NIE record supplies KOGL terms, but does not identify a
+KOGL type; the snapshot preserves that wording exactly as
+`KOGL terms (type unspecified on the EcoBank record)`.
 
-## Integrity and conversion
+Each JSON source object records its dataset ID, title, provider, source URL,
+source-file checksum, snapshot checksum, and, where supplied, DOI and
+publication date. Every normalized occurrence keeps the provider's source row
+identifier in `sourceRecordId` and has a stable
+`official:<datasetId>:<sourceRecordId>` ID.
 
-The `source.checksum` value in each demo manifest is the SHA-256 digest of its `records` or `features` JSON payload (not the enclosing manifest, which contains the checksum). The importer serializes the parsed payload with JavaScript `JSON.stringify(payload)` in its source-array/property order before hashing; it rejects a snapshot if this exact digest does not match. Recalculate it after changing a fixture. Production snapshots instead use the SHA-256 digest of the downloaded source file.
+## Scope and audit
 
-The importer accepts only a curated fish/plant mapping (the demo's bluegill and bur cucumber) and derives category from that mapping, never from a snapshot filename. An unknown species, including an accidentally appended bird or mammal row, is excluded from the public bundle.
+There are no habitat polygons in either source, so the no-key public bundle
+always has an empty `habitatAreas` array. The catalogue is deliberately narrow:
+the workbook publishes 898 reviewed records (195 bass, 128 bluegill, and 575
+bur cucumber) from its 4,780 source rows. The NIE snapshot preserves all 251
+Gyeongbuk fish rows but publishes only its 231 reviewed ecological-disturbance
+fish records (145 bass and 86 bluegill). Its audit block records the 20 rejected
+rows: 18 crucian carp (`떡붕어`) and 2 carp (`잉어`). Those fish are survey
+evidence only, not removal, bounty, or cooking targets.
 
-When a production source is delivered as SHP/DBF, convert it before importing; the demo importer deliberately consumes only pre-converted GeoJSON and does not require GIS software:
+When a matching bass or bluegill observation appears in both sources with the
+same normalized species, survey date/year, and coordinate, both provenance
+records remain in the bundle. The hotspot scorer pairs the cross-source match
+only for scoring so the duplicate cannot inflate a hotspot. Repeated records
+within one source remain distinct evidence.
 
-```sh
-ogr2ogr -f GeoJSON habitat.geojson habitat.shp
-```
+## Regeneration and integrity
 
-Keep the original SHP/DBF files and any transformation notes outside the public bundle when their licence or size makes committing them inappropriate.
+`python3 scripts/prepare-demo-snapshots.py` discovers the supplied decomposed
+Unicode filenames under `/Users/hyeonhongchang/Downloads/` and recreates these
+bounded snapshots without editing the originals. `source.checksum` is the
+SHA-256 digest of `JSON.stringify(records)` (not the enclosing JSON file); the
+importer verifies it before normalization. `sourceFileChecksum` is the SHA-256
+digest of the unmodified external source file.

@@ -59,6 +59,8 @@ type KnownSpecies = Pick<SpeciesDetails, 'id' | 'category'> & { scientificName: 
 type ObservedSpecies = Omit<SpeciesDetails, 'category'> & { category: 'fish' | 'plant' };
 
 const KNOWN_SPECIES = new Map<string, KnownSpecies>([
+  ['배스', { id: 'micropterus-salmoides', category: 'fish', scientificName: 'Micropterus salmoides', englishName: 'Largemouth bass' }],
+  ['micropterus salmoides', { id: 'micropterus-salmoides', category: 'fish', scientificName: 'Micropterus salmoides', englishName: 'Largemouth bass' }],
   ['블루길', { id: 'lepomis-macrochirus', category: 'fish', scientificName: 'Lepomis macrochirus', englishName: 'Bluegill' }],
   ['lepomis macrochirus', { id: 'lepomis-macrochirus', category: 'fish', scientificName: 'Lepomis macrochirus', englishName: 'Bluegill' }],
   ['가시박', { id: 'sicyos-angulatus', category: 'plant', scientificName: 'Sicyos angulatus', englishName: 'Bur cucumber' }],
@@ -76,6 +78,10 @@ function nonEmptyString(value: unknown): string | null {
 function coordinate(value: unknown): number | null {
   const parsed = typeof value === 'number' ? value : typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN;
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function sourceValue(row: JsonRecord, canonicalKey: string, sourceKey: string): unknown {
+  return row[canonicalKey] ?? row[sourceKey];
 }
 
 function speciesDetails(row: JsonRecord): SpeciesDetails | null {
@@ -118,6 +124,27 @@ function normalizeObservedAt(value: unknown): string | null | undefined {
   const normalized = text.length === 10 ? `${text}T00:00:00.000Z` : text;
   const parsed = new Date(normalized);
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+function observedAtFromRow(row: JsonRecord): string | null | undefined {
+  const observedAt = row.observedAt;
+  if (observedAt !== undefined && observedAt !== null && observedAt !== '') {
+    return normalizeObservedAt(observedAt);
+  }
+
+  const surveyYear = row.surveyYear ?? row['조사연도'];
+  if (surveyYear === undefined || surveyYear === null || surveyYear === '') {
+    return undefined;
+  }
+  const text = nonEmptyString(surveyYear);
+  if (text === null || !/^\d{4}$/.test(text)) {
+    return null;
+  }
+  const year = Number(text);
+  if (year < 1900 || year > 2100) {
+    return null;
+  }
+  return normalizeObservedAt(`${text}-01-01`);
 }
 
 function isPointOnSegment(point: [number, number], start: [number, number], end: [number, number]): boolean {
@@ -176,11 +203,16 @@ export function normalizeOccurrenceRow(
     return null;
   }
 
-  const sourceRecordId = nonEmptyString(row.sourceRecordId);
-  const details = speciesDetails(row);
-  const longitude = coordinate(row.longitude);
-  const latitude = coordinate(row.latitude);
-  const observedAt = normalizeObservedAt(row.observedAt);
+  const sourceRecordId = nonEmptyString(sourceValue(row, 'sourceRecordId', row.ID === undefined ? 'id' : 'ID'));
+  const details = speciesDetails({
+    ...row,
+    koreanName: sourceValue(row, 'koreanName', '한글보통명'),
+    scientificName: sourceValue(row, 'scientificName', '학명'),
+  });
+  const longitude = coordinate(sourceValue(row, 'longitude', '경도'));
+  const latitude = coordinate(sourceValue(row, 'latitude', '위도'));
+  const observedAt = observedAtFromRow(row);
+  const administrativeRegion = nonEmptyString(row['시도명']);
   if (
     sourceRecordId === null ||
     details === null ||
@@ -191,7 +223,8 @@ export function normalizeOccurrenceRow(
     latitude < -90 ||
     latitude > 90 ||
     observedAt === null ||
-    !isWithinGyeongbuk([longitude, latitude])
+    (administrativeRegion === null && !isWithinGyeongbuk([longitude, latitude])) ||
+    (administrativeRegion !== null && administrativeRegion !== '경상북도')
   ) {
     return null;
   }
@@ -274,7 +307,11 @@ function speciesFromRow(row: unknown): ObservedSpecies | null {
   if (!isRecord(row)) {
     return null;
   }
-  const details = speciesDetails(row);
+  const details = speciesDetails({
+    ...row,
+    koreanName: sourceValue(row, 'koreanName', '한글보통명'),
+    scientificName: sourceValue(row, 'scientificName', '학명'),
+  });
   return details === null
     ? null
     : {
@@ -287,19 +324,18 @@ function speciesFromRow(row: unknown): ObservedSpecies | null {
 }
 
 export function importDemoSnapshots(inputDirectory: string): PublicDataBundle {
-  const fish = readSnapshot(join(inputDirectory, 'ecobank-fish.json'));
-  const flora = readSnapshot(join(inputDirectory, 'ecobank-flora.json'));
-  const habitat = readHabitatSnapshot(join(inputDirectory, 'ecobank-habitat.geojson'));
+  const disturbance = readSnapshot(join(inputDirectory, 'ecosystem-disturbing-organisms-gyeongbuk-2016-2024.json'));
+  const alienFish = readSnapshot(join(inputDirectory, 'nie-alien-fish-gyeongbuk-2015-2022.json'));
   const catalogue = readCatalogSnapshot(join(inputDirectory, 'species-catalog.json'));
   const importRun: ImportRun = {
-    id: 'demo-import-v1',
+    id: 'gyeongbuk-no-key-import-v1',
     importedAt: '2026-08-22T00:00:00.000Z',
     parserVersion: '1.0.0',
   };
 
   const occurrenceInputs = [
-    ...fish.records.map((row) => ({ row, source: fish.source })),
-    ...flora.records.map((row) => ({ row, source: flora.source })),
+    ...disturbance.records.map((row) => ({ row, source: disturbance.source })),
+    ...alienFish.records.map((row) => ({ row, source: alienFish.source })),
   ].flatMap((input) => {
     const species = speciesFromRow(input.row);
     return species === null ? [] : [{ ...input, species }];
@@ -313,15 +349,12 @@ export function importDemoSnapshots(inputDirectory: string): PublicDataBundle {
       observedSpeciesIds.add(input.species.id);
     }
   }
-  const habitatAreas = habitat.features
-    .map((feature) => normalizeHabitatFeature(feature, habitat.source, importRun))
-    .filter((record): record is HabitatArea => record !== null);
   const cataloguedSpecies = buildSpeciesCatalog(catalogue.records, catalogue.media).filter((record) => observedSpeciesIds.has(record.id));
 
   return PublicDataBundleSchema.parse({
     species: cataloguedSpecies,
     officialOccurrences: occurrences,
-    habitatAreas,
+    habitatAreas: [],
     waterbodies: [],
     restrictedAreas: [],
     verifiedCommunitySignals: [],

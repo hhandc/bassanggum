@@ -23,33 +23,71 @@ function payloadChecksum(payload: unknown): string {
   return `sha256:${createHash('sha256').update(JSON.stringify(payload)).digest('hex')}`;
 }
 
+function rawSnapshot(filename: string): { source: Record<string, unknown>; records: Array<Record<string, string>>; audit: Record<string, unknown> } {
+  return JSON.parse(readFileSync(join(demoDirectory, filename), 'utf8')) as {
+    source: Record<string, unknown>;
+    records: Array<Record<string, string>>;
+    audit: Record<string, unknown>;
+  };
+}
+
 describe('demo snapshot import', () => {
-  it('imports the attributed synthetic snapshots into the public bundle contract', () => {
+  it('keeps only valid Gyeongbuk fish and plant workbook rows in the bounded source snapshot', () => {
+    const snapshot = rawSnapshot('ecosystem-disturbing-organisms-gyeongbuk-2016-2024.json');
+
+    expect(snapshot.records).toHaveLength(4780);
+    expect(snapshot.records.every((record) => record.시도명 === '경상북도')).toBe(true);
+    expect(snapshot.records.every((record) => record.분류군명 === '어류' || record.분류군명 === '식물')).toBe(true);
+    expect(snapshot.records.every((record) => Number.isFinite(Number(record.위도)) && Number.isFinite(Number(record.경도)))).toBe(true);
+    expect(snapshot.source.sourceFileChecksum).toBe('sha256:090f97e42d3157cb37b4cb68a1d548f03387f3d2f77c27af10c9704fe6c570f9');
+  });
+
+  it('keeps all NIE Gyeongbuk fish rows but audits the catalogue filter separately', () => {
+    const snapshot = rawSnapshot('nie-alien-fish-gyeongbuk-2015-2022.json');
+
+    expect(snapshot.records).toHaveLength(251);
+    expect(snapshot.records.every((record) => record.시도명 === '경상북도')).toBe(true);
+    expect(snapshot.records.every((record) => Number.isFinite(Number(record.위도)) && Number.isFinite(Number(record.경도)))).toBe(true);
+    expect(snapshot.source).toMatchObject({
+      datasetId: 'RSD_0000000000012824',
+      doi: '10.22756/ASD.20240000000888',
+      publishedAt: '2024-09-20',
+      sourceFileChecksum: 'sha256:f606443c122380949f9785876b60c48762f88e3f4cf8c8e6101f9eceb5628558',
+    });
+    expect(snapshot.audit).toMatchObject({
+      publishedRowsAfterCuratedFishFilter: 231,
+      rejectedRowsNotInCuratedDisturbanceCatalogue: 20,
+      rejectedSpeciesCounts: { '떡붕어': 18, '잉어': 2 },
+    });
+  });
+
+  it('imports the two attributed Gyeongbuk source snapshots into the public bundle contract', () => {
     const bundle = importDemoSnapshots(demoDirectory);
 
     expect(bundle.species).toEqual(
       expect.arrayContaining([
+        expect.objectContaining({ id: 'micropterus-salmoides', category: 'fish', koreanName: '배스' }),
         expect.objectContaining({ id: 'lepomis-macrochirus', category: 'fish', koreanName: '블루길' }),
         expect.objectContaining({ id: 'sicyos-angulatus', category: 'plant', koreanName: '가시박' }),
       ]),
     );
-    expect(bundle.officialOccurrences).toHaveLength(2);
+    expect(bundle.officialOccurrences).toHaveLength(1129);
     expect(bundle.officialOccurrences).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          id: 'official:ecobank-demo-fish-v1:demo-fish-001',
-          observedAt: '2024-06-15T00:00:00.000Z',
+          id: 'official:15022461:O20200113000746',
+          datasetId: '15022461',
+          sourceRecordId: 'O20200113000746',
         }),
-      ]),
-    );
-    expect(bundle.habitatAreas).toEqual(
-      expect.arrayContaining([
         expect.objectContaining({
-          id: 'official:ecobank-demo-habitat-v1:demo-habitat-001',
-          frequencyBand: 'frequent',
+          id: 'official:RSD_0000000000012824:ALSP_000000000007280',
+          datasetId: 'RSD_0000000000012824',
+          doi: '10.22756/ASD.20240000000888',
+          snapshotChecksum: expect.stringMatching(/^sha256:/),
         }),
       ]),
     );
+    expect(bundle.habitatAreas).toEqual([]);
     expect(bundle.waterbodies).toEqual([]);
     expect(bundle.restrictedAreas).toEqual([]);
     expect(bundle.verifiedCommunitySignals).toEqual([]);
@@ -68,15 +106,18 @@ describe('demo snapshot import', () => {
 
     expect(JSON.parse(readFileSync(outputPath, 'utf8'))).toEqual(
       expect.objectContaining({
-        officialOccurrences: expect.arrayContaining([expect.objectContaining({ speciesId: 'lepomis-macrochirus' })]),
-        habitatAreas: expect.arrayContaining([expect.objectContaining({ frequencyBand: 'frequent' })]),
+        officialOccurrences: expect.arrayContaining([
+          expect.objectContaining({ datasetId: '15022461' }),
+          expect.objectContaining({ datasetId: 'RSD_0000000000012824' }),
+        ]),
+        habitatAreas: [],
       }),
     );
   });
 
-  it('rejects a snapshot whose records no longer match its declared checksum', () => {
+  it('rejects a source snapshot whose records no longer match its declared checksum', () => {
     withCopiedDemoSnapshots((directory) => {
-      const path = join(directory, 'ecobank-fish.json');
+      const path = join(directory, 'ecosystem-disturbing-organisms-gyeongbuk-2016-2024.json');
       const snapshot = JSON.parse(readFileSync(path, 'utf8')) as { records: Array<Record<string, unknown>> };
       snapshot.records[0]!.longitude = '128.7000';
       writeFileSync(path, `${JSON.stringify(snapshot)}\n`);
@@ -85,28 +126,30 @@ describe('demo snapshot import', () => {
     });
   });
 
-  it('rejects a correctly checksummed bird row appended to a fish snapshot', () => {
+  it('does not publish a correctly checksummed non-catalogue fish from the NIE snapshot', () => {
     withCopiedDemoSnapshots((directory) => {
-      const path = join(directory, 'ecobank-fish.json');
+      const path = join(directory, 'nie-alien-fish-gyeongbuk-2015-2022.json');
       const snapshot = JSON.parse(readFileSync(path, 'utf8')) as {
         source: { checksum: string };
         records: Array<Record<string, unknown>>;
       };
       snapshot.records.push({
-        sourceRecordId: 'demo-bird-001',
-        koreanName: '큰까마귀',
-        scientificName: 'Corvus corax',
-        longitude: 128.5993,
-        latitude: 36.5715,
-        observedAt: '2024-06-16',
+        id: 'ALSP_000000000000001',
+        ktsn: '120000000000',
+        한글보통명: '잉어',
+        학명: 'Cyprinus carpio',
+        조사연도: '2020',
+        위도: '35.72669444',
+        경도: '128.9340556',
+        시도명: '경상북도',
       });
       snapshot.source.checksum = payloadChecksum(snapshot.records);
       writeFileSync(path, `${JSON.stringify(snapshot)}\n`);
 
       const bundle = importDemoSnapshots(directory);
 
-      expect(bundle.officialOccurrences).toHaveLength(2);
-      expect(bundle.species).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: 'corvus-corax' })]));
+      expect(bundle.officialOccurrences).toHaveLength(1129);
+      expect(bundle.species).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: 'cyprinus-carpio' })]));
     });
   });
 });

@@ -94,7 +94,7 @@ export function calculateHotspotCells(input: HotspotInput): HotspotCell[] {
   const now = toDate(input.now, 'now');
   const drafts = new Map<string, CellDraft>();
 
-  for (const occurrence of input.officialOccurrences) {
+  for (const occurrence of scoringOccurrences(input.officialOccurrences)) {
     const h3Index = pointToCell(occurrence.geometry.coordinates);
     const draft = getDraft(drafts, occurrence.speciesId, h3Index);
     addContribution(
@@ -153,6 +153,50 @@ export function calculateHotspotCells(input: HotspotInput): HotspotCell[] {
       (left, right) =>
         right.score - left.score || left.speciesId.localeCompare(right.speciesId) || left.h3Index.localeCompare(right.h3Index),
     );
+}
+
+/**
+ * Returns the official records that contribute to scores. Bundle records are
+ * deliberately untouched: only matching observations from different source
+ * datasets are paired here. Repeated observations inside one dataset remain.
+ */
+export function scoringOccurrences(occurrences: readonly OfficialOccurrence[]): OfficialOccurrence[] {
+  const byFingerprint = new Map<string, Map<string, OfficialOccurrence[]>>();
+
+  for (const occurrence of occurrences) {
+    const fingerprint = officialEvidenceFingerprint(occurrence);
+    const sourceGroups = byFingerprint.get(fingerprint) ?? new Map<string, OfficialOccurrence[]>();
+    const sourceRecords = sourceGroups.get(occurrence.datasetId) ?? [];
+    sourceRecords.push(occurrence);
+    sourceGroups.set(occurrence.datasetId, sourceRecords);
+    byFingerprint.set(fingerprint, sourceGroups);
+  }
+
+  const scored: OfficialOccurrence[] = [];
+  for (const sourceGroups of byFingerprint.values()) {
+    const groups = [...sourceGroups.values()].map((records) => [...records].sort((left, right) => left.id.localeCompare(right.id)));
+    const highestRepeatCount = Math.max(...groups.map((records) => records.length));
+    for (let index = 0; index < highestRepeatCount; index += 1) {
+      const pairedRecords = groups.flatMap((records): OfficialOccurrence[] => {
+        const record = records[index];
+        return record === undefined ? [] : [record];
+      });
+      const selected = pairedRecords.sort((left, right) => left.id.localeCompare(right.id))[0];
+      if (selected !== undefined) {
+        scored.push(selected);
+      }
+    }
+  }
+  return scored.sort((left, right) => left.id.localeCompare(right.id));
+}
+
+/** A stable semantic key used exclusively to prevent cross-source double scoring. */
+export function officialEvidenceFingerprint(occurrence: OfficialOccurrence): string {
+  const [longitude, latitude] = occurrence.geometry.coordinates;
+  const observedAt = occurrence.observedAt;
+  // Undated evidence cannot satisfy the same-date/year requirement, so it is never paired.
+  const dateKey = observedAt === undefined ? `undated:${occurrence.id}` : observedAt;
+  return [occurrence.speciesId, dateKey, longitude, latitude].join('\u0000');
 }
 
 function getDraft(drafts: Map<string, CellDraft>, speciesId: string, h3Index: string): CellDraft {

@@ -103,6 +103,61 @@ function scoreForSingleOfficial(observedAt: string | undefined): number | undefi
 }
 
 describe('calculateHotspotCells', () => {
+  it('counts matching cross-source official evidence once while retaining same-source repeats', () => {
+    const duplicatePoint = {
+      type: 'Point' as const,
+      coordinates: [128.349275, 36.227925] as [number, number],
+    };
+    const input = (officialOccurrences: HotspotInput['officialOccurrences']) =>
+      calculateHotspotCells({ ...communityInput([]), officialOccurrences })[0];
+    const matchingDate = '2020-01-01T00:00:00.000Z';
+
+    const onePerSource = input([
+      {
+        id: 'official:15022461:O20200113000746',
+        speciesId: 'lepomis-macrochirus',
+        evidenceSource: 'official',
+        geometry: duplicatePoint,
+        observedAt: matchingDate,
+        ...sourceMetadata,
+        datasetId: '15022461',
+      },
+      {
+        id: 'official:RSD_0000000000012824:ALSP_000000000007280',
+        speciesId: 'lepomis-macrochirus',
+        evidenceSource: 'official',
+        geometry: duplicatePoint,
+        observedAt: matchingDate,
+        ...sourceMetadata,
+        datasetId: 'RSD_0000000000012824',
+      },
+    ]);
+    const sameSourceRepeats = input([
+      {
+        id: 'official:15022461:first',
+        speciesId: 'lepomis-macrochirus',
+        evidenceSource: 'official',
+        geometry: duplicatePoint,
+        observedAt: matchingDate,
+        ...sourceMetadata,
+        datasetId: '15022461',
+      },
+      {
+        id: 'official:15022461:second',
+        speciesId: 'lepomis-macrochirus',
+        evidenceSource: 'official',
+        geometry: duplicatePoint,
+        observedAt: matchingDate,
+        ...sourceMetadata,
+        datasetId: '15022461',
+      },
+    ]);
+
+    expect(onePerSource).toMatchObject({ score: 3, status: 'none' });
+    expect(onePerSource?.evidenceBreakdown.officialOccurrences).toHaveLength(1);
+    expect(sameSourceRepeats?.evidenceBreakdown.officialOccurrences).toHaveLength(2);
+  });
+
   it('labels a cell with official evidence and score 25 as known', () => {
     const cell = calculateHotspotCells(knownInput)[0];
 

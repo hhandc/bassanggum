@@ -7,13 +7,13 @@ import {
 import { describe, expect, it } from 'vitest';
 
 const fishSource: DatasetSource = {
-  datasetId: 'ecobank-demo-fish-v1',
-  title: 'EcoBank-like fish occurrence demo snapshot',
-  provider: 'National Institute of Ecology EcoBank (reference only)',
-  sourceUrl: 'https://www.nie-ecobank.kr/',
-  licence: 'CC0-1.0 (repository-authored synthetic fixture)',
-  attribution: 'Bassanggum synthetic EcoBank-like fixture; EcoBank referenced (National Institute of Ecology)',
-  snapshotFilename: 'ecobank-fish.json',
+  datasetId: 'test-fish-v1',
+  title: 'Test fish occurrence snapshot',
+  provider: 'Test provider',
+  sourceUrl: 'https://example.com/test-fish',
+  licence: 'Test licence',
+  attribution: 'Test attribution',
+  snapshotFilename: 'test-fish.json',
   checksum: 'sha256:fixture-fish-v1',
 };
 
@@ -23,7 +23,65 @@ const importRun: ImportRun = {
   parserVersion: '1.0.0',
 };
 
-describe('EcoBank-like normalizers', () => {
+describe('occurrence normalizers', () => {
+  it('adapts an NIE survey year and preserves its source-specific provenance', () => {
+    const nieSource = {
+      datasetId: 'RSD_0000000000012824',
+      title: '외래생물_2015_2022',
+      provider: 'National Institute of Ecology (국립생태원)',
+      sourceUrl: 'https://www.nie-ecobank.kr/rdm/rsrchdoi/selectRsrchDtaDtlVw.do?rsrchDtaId=RSD_0000000000012824',
+      licence: 'KOGL terms (type unspecified on the EcoBank record)',
+      attribution: 'National Institute of Ecology (국립생태원)',
+      snapshotFilename: 'nie-alien-fish-gyeongbuk-2015-2022.json',
+      checksum: 'sha256:nie-snapshot',
+      doi: '10.22756/ASD.20240000000888',
+      publishedAt: '2024-09-20',
+      sourceFileChecksum: 'sha256:nie-source-file',
+    } as DatasetSource;
+
+    const record = normalizeOccurrenceRow(
+      {
+        sourceRecordId: 'ALSP_000000000007260',
+        koreanName: '블루길',
+        scientificName: 'Lepomis macrochirus',
+        longitude: '128.9340556',
+        latitude: '35.72669444',
+        surveyYear: '2020',
+        시도명: '경상북도',
+      },
+      nieSource,
+      importRun,
+    );
+
+    expect(record).toMatchObject({
+      id: 'official:RSD_0000000000012824:ALSP_000000000007260',
+      observedAt: '2020-01-01T00:00:00.000Z',
+      sourceRecordId: 'ALSP_000000000007260',
+      datasetId: 'RSD_0000000000012824',
+      provider: 'National Institute of Ecology (국립생태원)',
+      doi: '10.22756/ASD.20240000000888',
+      licence: 'KOGL terms (type unspecified on the EcoBank record)',
+      snapshotChecksum: 'sha256:nie-snapshot',
+    });
+  });
+
+  it('does not normalize an NIE fish that is absent from the curated disturbance catalogue', () => {
+    expect(
+      normalizeOccurrenceRow(
+        {
+          sourceRecordId: 'ALSP_000000000000001',
+          koreanName: '잉어',
+          scientificName: 'Cyprinus carpio',
+          longitude: '128.9340556',
+          latitude: '35.72669444',
+          surveyYear: '2020',
+        },
+        fishSource,
+        importRun,
+      ),
+    ).toBeNull();
+  });
+
   it('keeps a Gyeongbuk bluegill survey point with provenance', () => {
     const record = normalizeOccurrenceRow(
       {
@@ -39,11 +97,11 @@ describe('EcoBank-like normalizers', () => {
     );
 
     expect(record).toMatchObject({
-      id: 'official:ecobank-demo-fish-v1:demo-fish-001',
+      id: 'official:test-fish-v1:demo-fish-001',
       speciesId: 'lepomis-macrochirus',
       evidenceSource: 'official',
       observedAt: '2024-06-15T00:00:00.000Z',
-      datasetId: 'ecobank-demo-fish-v1',
+      datasetId: 'test-fish-v1',
       importRunId: 'demo-import-v1',
     });
   });
@@ -126,7 +184,7 @@ describe('EcoBank-like normalizers', () => {
     );
 
     expect(record).toMatchObject({
-      id: 'official:ecobank-demo-fish-v1:demo-habitat-001',
+      id: 'official:test-fish-v1:demo-habitat-001',
       speciesId: 'lepomis-macrochirus',
       frequencyBand: 'frequent',
       sourceRecordId: 'demo-habitat-001',

@@ -22,6 +22,10 @@ export function createProvenance(
     attribution: parsedSource.attribution,
     importRunId: parsedRun.id,
     sourceRecordId,
+    ...(parsedSource.doi === undefined ? {} : { doi: parsedSource.doi }),
+    ...(parsedSource.publishedAt === undefined ? {} : { publishedAt: parsedSource.publishedAt }),
+    snapshotChecksum: parsedSource.checksum,
+    ...(parsedSource.sourceFileChecksum === undefined ? {} : { sourceFileChecksum: parsedSource.sourceFileChecksum }),
   });
 
   return Object.freeze(parsedProvenance);

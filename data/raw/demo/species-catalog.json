@@ -1,6 +1,25 @@
 {
   "records": [
     {
+      "id": "micropterus-salmoides",
+      "category": "fish",
+      "englishName": "Largemouth bass",
+      "koreanName": "배스",
+      "scientificName": "Micropterus salmoides",
+      "visualTraits": [
+        "Large mouth extends behind the rear edge of the eye.",
+        "A dark horizontal stripe is often visible along the side."
+      ],
+      "lookAlikes": [
+        "Compare mouth size and the side stripe with native black bass relatives before reporting."
+      ],
+      "disposalGuidance": {
+        "text": "Follow local authority and event directions; do not release a captured fish elsewhere.",
+        "sourceUrl": "https://www.law.go.kr/"
+      },
+      "actionPolicy": "official_event_only"
+    },
+    {
       "id": "lepomis-macrochirus",
       "category": "fish",
       "englishName": "Bluegill",
@@ -44,6 +63,13 @@
     }
   ],
   "media": [
+    {
+      "speciesId": "micropterus-salmoides",
+      "url": "https://commons.wikimedia.org/w/index.php?title=File:Micropterus_salmoides.jpg&oldid=956389953",
+      "sourceUrl": "https://commons.wikimedia.org/w/index.php?title=File:Micropterus_salmoides.jpg&oldid=956389953",
+      "credit": "Duane Raver, U.S. Fish and Wildlife Service",
+      "licence": "Public domain — U.S. federal government work (U.S. Fish and Wildlife Service)"
+    },
     {
       "speciesId": "lepomis-macrochirus",
       "url": "https://commons.wikimedia.org/w/index.php?title=File:Lepomis_macrochirus_01.jpg&oldid=1064258190",

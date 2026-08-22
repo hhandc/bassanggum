@@ -8,7 +8,7 @@ const source = {
   sourceUrl: 'https://www.data.go.kr/data/15022461',
   licence: 'KOGL Type 1',
   attribution: 'National Institute of Ecology',
-  snapshotFilename: 'ecobank-fish.json',
+  snapshotFilename: 'test-source.json',
   checksum: 'sha256:example',
 };
 
