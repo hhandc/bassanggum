@@ -10,9 +10,9 @@ describe('HomePage', () => {
     expect(screen.getByRole('heading', { name: /Bassanggum/i })).toBeVisible();
   });
 
-  it('renders the four primary navigation destinations for Korean', async () => {
+  it('opens the Korean map as the main screen', async () => {
     render(await HomePage({ params: Promise.resolve({ locale: 'ko' }) }));
 
-    expect(screen.getAllByRole('link')).toHaveLength(4);
+    expect(screen.getByLabelText('경북 보상 구역 지도')).toBeVisible();
   });
 });

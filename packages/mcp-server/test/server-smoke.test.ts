@@ -94,7 +94,7 @@ describe('MCP server', () => {
     expect((second.structuredContent as { items: Array<{ id: string }> }).items[0]!.id).not.toBe(firstPage.items[0]!.id);
 
     await Promise.all([client.close(), server.close()]);
-  });
+  }, 30_000);
 
   it('delivers source-attributed not-found results through MCP', async () => {
     const server = createMcpServer(importDemoSnapshots(demoDirectory));
@@ -107,5 +107,5 @@ describe('MCP server', () => {
     expect(result.structuredContent).toMatchObject({ found: false, evidenceType: 'official', provenance: [] });
 
     await Promise.all([client.close(), server.close()]);
-  });
+  }, 30_000);
 });

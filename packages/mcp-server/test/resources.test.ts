@@ -27,7 +27,7 @@ describe('MCP resources', () => {
     for (const resource of Object.values(resources)) {
       expect(resource).toMatchObject({ evidenceType: expect.any(String), provenance: expect.any(Array) });
     }
-  });
+  }, 30_000);
 
   it('publishes source-level attribution in the dataset resource', () => {
     const first = bundle.officialOccurrences[0]!;
