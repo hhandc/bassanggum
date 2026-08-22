@@ -57,18 +57,33 @@ export function createActionZones(
     const unassigned: HotspotCell[] = [];
 
     for (const cell of speciesCells) {
-      const matchingLandforms = candidateLandforms(landformIndex, cell.h3Index)
+      const candidates = candidateLandforms(landformIndex, cell.h3Index)
         .filter((candidate) => landformSupportsSpecies(candidate, speciesCategories.get(speciesId)))
-        .filter((candidate) => landformIntersectsObservationNeighbourhood(candidate, cell.h3Index));
-      if (matchingLandforms.length === 0) {
+        .map((candidate) => ({
+          landform: candidate,
+          direct: landformIntersectsCell(candidate, cell.h3Index),
+          nearby: landformIntersectsObservationNeighbourhood(candidate, cell.h3Index),
+        }))
+        .filter((candidate) => candidate.direct || candidate.nearby);
+
+      if (candidates.length === 0) {
         unassigned.push(cell);
         continue;
       }
-      for (const landform of matchingLandforms) {
-        const matching = assigned.get(landform.id) ?? [];
-        matching.push(cell);
-        assigned.set(landform.id, matching);
+
+      const chosen = candidates
+        .sort((left, right) => {
+          if (left.direct !== right.direct) return left.direct ? -1 : 1;
+          return landformPriority(left.landform.kind) - landformPriority(right.landform.kind);
+        })[0];
+      if (chosen === undefined) {
+        unassigned.push(cell);
+        continue;
       }
+      const landform = chosen.landform;
+      const matching = assigned.get(landform.id) ?? [];
+      matching.push(cell);
+      assigned.set(landform.id, matching);
     }
 
     const named = [...assigned.entries()].map(([landformId, matchingCells]) => {
@@ -257,8 +272,16 @@ function createZone(draft: ZoneDraft): ActionZone {
 }
 
 function landformSupportsSpecies(landform: PreparedLandform, category: 'fish' | 'plant' | undefined): boolean {
-  return (category === 'fish' && landform.kind === 'river_segment') ||
+  return (category === 'fish' && (landform.kind === 'river_segment' || landform.kind === 'lake')) ||
     (category === 'plant' && landform.kind === 'forest_habitat');
+}
+
+function landformPriority(kind: PreparedLandform['kind']): number {
+  switch (kind) {
+    case 'lake': return 0;
+    case 'river_segment': return 1;
+    case 'forest_habitat': return 2;
+  }
 }
 
 function asMultiPolygon(geometry: AreaGeometry): AreaGeometry {

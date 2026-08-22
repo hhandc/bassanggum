@@ -12,6 +12,7 @@ import csv
 import hashlib
 import json
 import math
+import os
 import sys
 import unicodedata
 from itertools import zip_longest
@@ -21,7 +22,7 @@ from xml.etree import ElementTree as ET
 from zipfile import ZipFile
 
 
-DOWNLOADS = Path('/Users/hyeonhongchang/Downloads')
+DOWNLOADS = Path(os.environ.get('BASSANGGUM_DOWNLOADS_SOURCE', '/Users/hyeonhongchang/Downloads'))
 OUTPUT_DIRECTORY = Path(__file__).resolve().parents[1] / 'data' / 'raw' / 'demo'
 WORKBOOK_SNAPSHOT = 'ecosystem-disturbing-organisms-gyeongbuk-2016-2024.json'
 NIE_SNAPSHOT = 'nie-alien-fish-gyeongbuk-2015-2022.json'
