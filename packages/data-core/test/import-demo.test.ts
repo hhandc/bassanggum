@@ -136,10 +136,13 @@ function writeForestFixtureSource(directory: string): void {
     return shp;
   };
   const shiftedPoints = points.map(([longitude, latitude]) => [longitude + 500, latitude]);
+  const reversedOpenPoints = [...points.slice(0, -1)].reverse();
+  const rotatedReversedPoints = [...reversedOpenPoints.slice(2), ...reversedOpenPoints.slice(0, 2)];
+  rotatedReversedPoints.push(rotatedReversedPoints[0]!);
 
   for (const shard of ['47_1', '47_2']) {
     writeFileSync(join(directory, `${shard}.dbf`), dbf);
-    writeFileSync(join(directory, `${shard}.shp`), createShp(shard === '47_1' ? [points, points] : [points, shiftedPoints]));
+    writeFileSync(join(directory, `${shard}.shp`), createShp(shard === '47_1' ? [points, rotatedReversedPoints] : [points, shiftedPoints]));
     writeFileSync(join(directory, `${shard}.prj`), projection);
     writeFileSync(join(directory, `${shard}.shx`), Buffer.alloc(100));
   }
