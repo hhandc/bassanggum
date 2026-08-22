@@ -61,6 +61,7 @@ type SpeciesDetails = {
 };
 type KnownSpecies = Pick<SpeciesDetails, 'id' | 'category'> & { scientificName: string; englishName: string };
 type ObservedSpecies = Omit<SpeciesDetails, 'category'> & { category: 'fish' | 'plant' };
+type ObservedAt = { observedAt: string; observedAtPrecision: 'year' | 'date' | 'datetime' };
 
 const KNOWN_SPECIES = new Map<string, KnownSpecies>([
   ['환삼덩굴', { id: 'humulus-japonicus', category: 'plant', scientificName: 'Humulus japonicus', englishName: 'Japanese hop' }],
@@ -158,15 +159,15 @@ function normalizeObservedAt(value: unknown): string | null | undefined {
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
 }
 
-function observedAtFromRow(row: JsonRecord): string | null | undefined {
+function observedAtFromRow(row: JsonRecord): ObservedAt | null | undefined {
   const observedAt = row.observedAt;
   if (observedAt !== undefined && observedAt !== null && observedAt !== '') {
-    return normalizeObservedAt(observedAt);
+    return normalizeObservedValue(observedAt);
   }
 
   const surveyDate = row['조사일자'];
   if (surveyDate !== undefined && surveyDate !== null && surveyDate !== '') {
-    return normalizeObservedAt(surveyDate);
+    return normalizeObservedValue(surveyDate);
   }
 
   const surveyYear = row.surveyYear ?? row['조사연도'];
@@ -181,7 +182,20 @@ function observedAtFromRow(row: JsonRecord): string | null | undefined {
   if (year < 1900 || year > 2100) {
     return null;
   }
-  return normalizeObservedAt(`${text}-01-01`);
+  const normalized = normalizeObservedAt(`${text}-01-01`);
+  return normalized === null || normalized === undefined ? normalized : { observedAt: normalized, observedAtPrecision: 'year' };
+}
+
+function normalizeObservedValue(value: unknown): ObservedAt | null | undefined {
+  const normalized = normalizeObservedAt(value);
+  if (normalized === null || normalized === undefined) {
+    return normalized;
+  }
+  const text = nonEmptyString(value);
+  return {
+    observedAt: normalized,
+    observedAtPrecision: text !== null && /^\d{4}-\d{2}-\d{2}$/.test(text) ? 'date' : 'datetime',
+  };
 }
 
 function isPointOnSegment(point: [number, number], start: [number, number], end: [number, number]): boolean {
@@ -271,7 +285,7 @@ export function normalizeOccurrenceRow(
     speciesId: details.id,
     evidenceSource: 'official',
     geometry: { type: 'Point', coordinates: [longitude, latitude] },
-    ...(observedAt === undefined ? {} : { observedAt }),
+    ...(observedAt === undefined ? {} : observedAt),
     ...createProvenance(source, importRun, sourceRecordId),
   });
   return parsed.success ? parsed.data : null;

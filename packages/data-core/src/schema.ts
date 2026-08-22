@@ -148,6 +148,8 @@ export const OfficialOccurrenceSchema = z
     evidenceSource: z.literal('official'),
     geometry: PointSchema,
     observedAt: z.string().datetime({ offset: true }).optional(),
+    /** Source granularity for observedAt; it enables safe scoring-only date/year matching. */
+    observedAtPrecision: z.enum(['year', 'date', 'datetime']).optional(),
   })
   .merge(OfficialProvenanceSchema)
   .strict();

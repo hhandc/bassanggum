@@ -1,5 +1,6 @@
 import {
   calculateHotspotCells,
+  scoringOccurrences,
   type HotspotCommunitySignal,
   type HotspotInput,
   VerifiedCommunitySignalSchema,
@@ -102,7 +103,38 @@ function scoreForSingleOfficial(observedAt: string | undefined): number | undefi
   })[0]?.score;
 }
 
+function precisionOccurrence(
+  id: string,
+  datasetId: string,
+  observedAt: string,
+  observedAtPrecision: 'year' | 'date',
+): HotspotInput['officialOccurrences'][number] & { observedAtPrecision: 'year' | 'date' } {
+  return {
+    id,
+    speciesId: 'sicyos-angulatus',
+    evidenceSource: 'official',
+    geometry: point,
+    observedAt,
+    observedAtPrecision,
+    ...sourceMetadata,
+    datasetId,
+  };
+}
+
 describe('calculateHotspotCells', () => {
+  it('pairs annual and dated cross-source evidence by year without collapsing repeat observations', () => {
+    const annual = precisionOccurrence('official:annual:one', 'annual-source', '2020-01-01T00:00:00.000Z', 'year');
+    const datedOne = precisionOccurrence('official:dated:one', 'dated-source', '2020-04-15T00:00:00.000Z', 'date');
+    const datedTwo = precisionOccurrence('official:dated:two', 'dated-source', '2020-09-15T00:00:00.000Z', 'date');
+    const differentYear = precisionOccurrence('official:dated:other-year', 'dated-source', '2021-04-15T00:00:00.000Z', 'date');
+    const sameSourceRepeat = precisionOccurrence('official:annual:two', 'annual-source', '2020-01-01T00:00:00.000Z', 'year');
+
+    expect(scoringOccurrences([annual, datedOne])).toHaveLength(1);
+    expect(scoringOccurrences([annual, differentYear])).toHaveLength(2);
+    expect(scoringOccurrences([annual, datedOne, datedTwo])).toHaveLength(2);
+    expect(scoringOccurrences([annual, sameSourceRepeat])).toHaveLength(2);
+  });
+
   it('counts matching cross-source official evidence once while retaining same-source repeats', () => {
     const duplicatePoint = {
       type: 'Point' as const,

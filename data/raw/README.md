@@ -50,10 +50,16 @@ folder is deliberately neither copied nor ingested, and is not attributed to
 
 When a matching curated fish or plant observation appears across sources with the
 same normalized species, survey date/year, and coordinate, both provenance
-records remain in the bundle. The hotspot scorer rounds each WGS84 longitude
-and latitude to six decimal places (about 0.11 m) before pairing only
-cross-source matches; points separated by at least one six-decimal unit remain
-distinct. Repeated records within one source remain distinct evidence.
+records remain in the bundle. `observedAtPrecision` records whether the source
+provided a year, date, or timestamp without changing the original normalized
+`observedAt`. Scoring uses the year when at least one source has year-only
+precision; otherwise it requires the exact date/timestamp. The 2,561
+cross-source yearly coordinate groups therefore score as 4,986 observations,
+while a single annual record paired with two dated observations in the same year
+still contributes two scores. The scorer rounds each WGS84 longitude and
+latitude to six decimal places (about 0.11 m) before pairing only cross-source
+matches; points separated by at least one six-decimal unit remain distinct.
+Repeated records within one source remain distinct evidence.
 
 The committed boundary requires both the exact `경상북도` label and a point
 inside the local polygon. Its southeast coastal segment was corrected to include

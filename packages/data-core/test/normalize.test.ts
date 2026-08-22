@@ -56,6 +56,7 @@ describe('occurrence normalizers', () => {
     expect(record).toMatchObject({
       id: 'official:RSD_0000000000012824:ALSP_000000000007260',
       observedAt: '2020-01-01T00:00:00.000Z',
+      observedAtPrecision: 'year',
       sourceRecordId: 'ALSP_000000000007260',
       datasetId: 'RSD_0000000000012824',
       provider: 'National Institute of Ecology (국립생태원)',
@@ -97,6 +98,7 @@ describe('occurrence normalizers', () => {
       id: 'official:RSD_0000000000012705:53320',
       sourceRecordId: '53320',
       observedAt: '2020-10-14T00:00:00.000Z',
+      observedAtPrecision: 'date',
       datasetId: 'RSD_0000000000012705',
     });
   });

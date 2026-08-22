@@ -161,15 +161,23 @@ export function calculateHotspotCells(input: HotspotInput): HotspotCell[] {
  * datasets are paired here. Repeated observations inside one dataset remain.
  */
 export function scoringOccurrences(occurrences: readonly OfficialOccurrence[]): OfficialOccurrence[] {
-  const byFingerprint = new Map<string, Map<string, OfficialOccurrence[]>>();
-
+  const annualGroups = new Map<string, OfficialOccurrence[]>();
   for (const occurrence of occurrences) {
-    const fingerprint = officialEvidenceFingerprint(occurrence);
-    const sourceGroups = byFingerprint.get(fingerprint) ?? new Map<string, OfficialOccurrence[]>();
-    const sourceRecords = sourceGroups.get(occurrence.datasetId) ?? [];
-    sourceRecords.push(occurrence);
-    sourceGroups.set(occurrence.datasetId, sourceRecords);
-    byFingerprint.set(fingerprint, sourceGroups);
+    const fingerprint = officialEvidenceYearFingerprint(occurrence);
+    const records = annualGroups.get(fingerprint) ?? [];
+    records.push(occurrence);
+    annualGroups.set(fingerprint, records);
+  }
+
+  const byFingerprint = new Map<string, Map<string, OfficialOccurrence[]>>();
+  for (const [yearFingerprint, records] of annualGroups) {
+    if (records.some((occurrence) => occurrence.observedAtPrecision === 'year')) {
+      addScoringRecords(byFingerprint, `year:${yearFingerprint}`, records);
+      continue;
+    }
+    for (const occurrence of records) {
+      addScoringRecords(byFingerprint, `date:${officialEvidenceFingerprint(occurrence)}`, [occurrence]);
+    }
   }
 
   const scored: OfficialOccurrence[] = [];
@@ -190,7 +198,21 @@ export function scoringOccurrences(occurrences: readonly OfficialOccurrence[]): 
   return scored.sort((left, right) => left.id.localeCompare(right.id));
 }
 
-/** A stable semantic key used exclusively to prevent cross-source double scoring. */
+function addScoringRecords(
+  groups: Map<string, Map<string, OfficialOccurrence[]>>,
+  fingerprint: string,
+  records: readonly OfficialOccurrence[],
+): void {
+  const sourceGroups = groups.get(fingerprint) ?? new Map<string, OfficialOccurrence[]>();
+  for (const occurrence of records) {
+    const sourceRecords = sourceGroups.get(occurrence.datasetId) ?? [];
+    sourceRecords.push(occurrence);
+    sourceGroups.set(occurrence.datasetId, sourceRecords);
+  }
+  groups.set(fingerprint, sourceGroups);
+}
+
+/** A stable exact-date semantic key used exclusively to prevent cross-source double scoring. */
 export function officialEvidenceFingerprint(occurrence: OfficialOccurrence): string {
   const [longitude, latitude] = occurrence.geometry.coordinates;
   const observedAt = occurrence.observedAt;
@@ -199,6 +221,14 @@ export function officialEvidenceFingerprint(occurrence: OfficialOccurrence): str
   // Six decimals are approximately 0.11 m: enough to pair harmless source
   // serialization differences, not clearly distinct nearby observations.
   return [occurrence.speciesId, dateKey, coordinateFingerprint(longitude), coordinateFingerprint(latitude)].join('\u0000');
+}
+
+/** A stable species/year/coordinate key used only when a source declares year precision. */
+function officialEvidenceYearFingerprint(occurrence: OfficialOccurrence): string {
+  const [longitude, latitude] = occurrence.geometry.coordinates;
+  const observedAt = occurrence.observedAt;
+  const yearKey = observedAt === undefined ? `undated:${occurrence.id}` : observedAt.slice(0, 4);
+  return [occurrence.speciesId, yearKey, coordinateFingerprint(longitude), coordinateFingerprint(latitude)].join('\u0000');
 }
 
 function coordinateFingerprint(coordinate: number): string {

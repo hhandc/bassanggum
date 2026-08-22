@@ -1,4 +1,4 @@
-import { importDemoSnapshots, isWithinGyeongbuk } from '@bassanggum/data-core';
+import { importDemoSnapshots, isWithinGyeongbuk, scoringOccurrences } from '@bassanggum/data-core';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -21,6 +21,12 @@ function withCopiedDemoSnapshots(test: (directory: string) => void): void {
 
 function payloadChecksum(payload: unknown): string {
   return `sha256:${createHash('sha256').update(JSON.stringify(payload)).digest('hex')}`;
+}
+
+function yearlyCoordinateKey(record: { speciesId: string; observedAt?: string | undefined; geometry: { coordinates: [number, number] | [number, number, number] } }): string {
+  const [longitude, latitude] = record.geometry.coordinates;
+  const normalizeCoordinate = (coordinate: number) => (Math.round(coordinate * 1_000_000) / 1_000_000).toFixed(6);
+  return [record.speciesId, record.observedAt?.slice(0, 4), normalizeCoordinate(longitude), normalizeCoordinate(latitude)].join('\u0000');
 }
 
 function rawSnapshot(filename: string): { source: Record<string, unknown>; records: Array<Record<string, string>>; audit: Record<string, unknown> } {
@@ -105,6 +111,7 @@ describe('demo snapshot import', () => {
           id: 'official:RSD_0000000000012894:O20200113000746',
           datasetId: 'RSD_0000000000012894',
           sourceRecordId: 'O20200113000746',
+          observedAtPrecision: 'year',
         }),
         expect.objectContaining({
           id: 'official:RSD_0000000000012824:ALSP_000000000007280',
@@ -117,6 +124,7 @@ describe('demo snapshot import', () => {
           datasetId: 'RSD_0000000000012705',
           sourceRecordId: '53320',
           observedAt: '2020-10-14T00:00:00.000Z',
+          observedAtPrecision: 'date',
         }),
       ]),
     );
@@ -143,6 +151,15 @@ describe('demo snapshot import', () => {
       const species = speciesById.get(speciesId);
       return species?.category === 'plant' && species.actionPolicy === 'report_only' && species.cookingGuidance === undefined;
     })).toBe(true);
+    const scoreable = scoringOccurrences(bundle.officialOccurrences);
+    const sourceIdsByYearlyCoordinate = new Map<string, Set<string>>();
+    for (const record of bundle.officialOccurrences) {
+      const sourceIds = sourceIdsByYearlyCoordinate.get(yearlyCoordinateKey(record)) ?? new Set<string>();
+      sourceIds.add(record.datasetId);
+      sourceIdsByYearlyCoordinate.set(yearlyCoordinateKey(record), sourceIds);
+    }
+    expect([...sourceIdsByYearlyCoordinate.values()].filter((sourceIds) => sourceIds.size > 1)).toHaveLength(2561);
+    expect(scoreable).toHaveLength(4986);
   });
 
   it('runs pnpm demo:data without source credentials and writes the public bundle', () => {
