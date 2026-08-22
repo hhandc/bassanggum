@@ -36,6 +36,18 @@ it('serves MCP initialization through the documented pnpm mcp command', async ()
 
     const resource = await client.readResource({ uri: 'bassanggum://catalog/species' });
     expect(resource.contents[0]).toMatchObject({ mimeType: 'application/json', text: expect.any(String) });
+
+    const provenance = await client.callTool({ name: 'get_data_provenance', arguments: {} });
+    expect(provenance.structuredContent).toMatchObject({
+      items: expect.arrayContaining([
+        expect.objectContaining({ datasetId: 'KDPA-PROTECTED-AREAS-OECM-KR-2025', sourceUrl: 'https://www.kdpa.kr/' }),
+      ]),
+    });
+    const datasets = await client.readResource({ uri: 'bassanggum://catalog/datasets' });
+    const datasetPayload = JSON.parse((datasets.contents[0] as { text: string }).text) as { datasets: Array<{ datasetId: string; sourceUrl: string }> };
+    expect(datasetPayload.datasets).toEqual(expect.arrayContaining([
+      expect.objectContaining({ datasetId: 'KDPA-PROTECTED-AREAS-OECM-KR-2025', sourceUrl: 'https://www.kdpa.kr/' }),
+    ]));
   } finally {
     await client.close();
   }

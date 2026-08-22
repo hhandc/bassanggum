@@ -11,6 +11,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import sys
 import unicodedata
 from pathlib import Path
 from struct import unpack
@@ -28,6 +29,7 @@ KDPA_DIRECTORY = DOWNLOADS / '2025_ver'
 KDPA_SHAPEFILE = KDPA_DIRECTORY / 'Protected_areas_OECM_Republic_of_Korea_ver_2025.shp'
 KDPA_DBF = KDPA_SHAPEFILE.with_suffix('.dbf')
 KDPA_PRJ = KDPA_SHAPEFILE.with_suffix('.prj')
+KDPA_CPG = KDPA_SHAPEFILE.with_suffix('.cpg')
 SPREADSHEET_NS = {
     'm': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main',
     'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
@@ -66,6 +68,15 @@ def discover_inputs() -> tuple[Path, Path, Path]:
 
 def sha256_file(path: Path) -> str:
     return f"sha256:{hashlib.sha256(path.read_bytes()).hexdigest()}"
+
+
+def component_checksum(paths: tuple[Path, ...]) -> str:
+    """Hash a complete named source bundle, independent of filesystem order."""
+    payload = ''.join(
+        f"{path.name}\0{sha256_file(path)}\n"
+        for path in sorted(paths, key=lambda item: item.name)
+    )
+    return f"sha256:{hashlib.sha256(payload.encode('utf-8')).hexdigest()}"
 
 
 def json_payload_checksum(records: list[dict[str, str]]) -> str:
@@ -206,11 +217,15 @@ def shp_polygons(path: Path) -> list[list[list[list[float]]]]:
     return polygons
 
 
-def write_kdpa_snapshot() -> None:
-    if 'WGS_1984' not in KDPA_PRJ.read_text(encoding='ascii'):
+def write_kdpa_snapshot(source_directory: Path = KDPA_DIRECTORY, output_directory: Path = OUTPUT_DIRECTORY) -> None:
+    shapefile = source_directory / KDPA_SHAPEFILE.name
+    dbf = shapefile.with_suffix('.dbf')
+    projection = shapefile.with_suffix('.prj')
+    code_page = shapefile.with_suffix('.cpg')
+    if 'WGS_1984' not in projection.read_text(encoding='ascii'):
         raise ValueError('KDPA source projection must be WGS84.')
-    rows = dbf_rows(KDPA_DBF)
-    polygons = shp_polygons(KDPA_SHAPEFILE)
+    rows = dbf_rows(dbf)
+    polygons = shp_polygons(shapefile)
     if len(rows) != len(polygons):
         raise ValueError('KDPA SHP and DBF record counts differ.')
 
@@ -242,7 +257,7 @@ def write_kdpa_snapshot() -> None:
         'licence': 'User-confirmed no-reuse-restriction for the supplied KDPA export.',
         'attribution': 'Korea Database on Protected Areas (KDPA), Protected areas and OECMs, Republic of Korea, 2025.',
         'snapshotFilename': KDPA_SNAPSHOT,
-        'sourceFileChecksum': sha256_file(KDPA_SHAPEFILE),
+        'sourceFileChecksum': component_checksum((shapefile, dbf, projection, code_page)),
         'checksum': json_payload_checksum(features),
     }
     payload = {
@@ -256,12 +271,18 @@ def write_kdpa_snapshot() -> None:
             'limitation': 'KDPA boundaries are safety screening only. An overlap does not change hotspot scores and never authorizes legal removal; an official event or agency determination is required.',
         },
     }
-    (OUTPUT_DIRECTORY / KDPA_SNAPSHOT).write_text(
+    (output_directory / KDPA_SNAPSHOT).write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8'
     )
 
 
 def main() -> None:
+    if len(sys.argv) > 1:
+        if len(sys.argv) != 4 or sys.argv[1] != '--kdpa-only':
+            raise SystemExit('Usage: prepare-demo-snapshots.py [--kdpa-only <source-directory> <output-directory>]')
+        write_kdpa_snapshot(Path(sys.argv[2]), Path(sys.argv[3]))
+        return
+
     workbook_path, csv_path, plant_csv_path = discover_inputs()
     workbook_rows = [
         row

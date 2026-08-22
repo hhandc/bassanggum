@@ -1,13 +1,15 @@
-import { importDemoSnapshots, isWithinGyeongbuk, scoringOccurrences } from '@bassanggum/data-core';
+import { calculateHotspotCells, createActionZones, importDemoSnapshots, isWithinGyeongbuk, scoringOccurrences } from '@bassanggum/data-core';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const demoDirectory = fileURLToPath(new URL('../../../data/raw/demo/', import.meta.url));
+const workspaceRoot = fileURLToPath(new URL('../../../', import.meta.url));
+const kdpaSourceDirectory = '/Users/hyeonhongchang/Downloads/2025_ver';
 
 function withCopiedDemoSnapshots(test: (directory: string) => void): void {
   const directory = mkdtempSync(join(tmpdir(), 'bassanggum-demo-'));
@@ -21,6 +23,27 @@ function withCopiedDemoSnapshots(test: (directory: string) => void): void {
 
 function payloadChecksum(payload: unknown): string {
   return `sha256:${createHash('sha256').update(JSON.stringify(payload)).digest('hex')}`;
+}
+
+function generateKdpaSnapshot(sourceDirectory: string, outputDirectory: string): ReturnType<typeof rawFeatureSnapshot> {
+  execFileSync('python3', ['scripts/prepare-demo-snapshots.py', '--kdpa-only', sourceDirectory, outputDirectory], {
+    cwd: workspaceRoot,
+    stdio: 'pipe',
+  });
+  return JSON.parse(readFileSync(join(outputDirectory, 'kdpa-protected-areas-oecm-gyeongbuk-2025.geojson'), 'utf8')) as ReturnType<typeof rawFeatureSnapshot>;
+}
+
+function withCopiedKdpaSourceBundle(test: (sourceDirectory: string, outputDirectory: string) => void): void {
+  const directory = mkdtempSync(join(tmpdir(), 'bassanggum-kdpa-source-'));
+  const sourceDirectory = join(directory, 'source');
+  const outputDirectory = join(directory, 'output');
+  cpSync(kdpaSourceDirectory, sourceDirectory, { recursive: true });
+  mkdirSync(outputDirectory);
+  try {
+    test(sourceDirectory, outputDirectory);
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
 }
 
 function yearlyCoordinateKey(record: { speciesId: string; observedAt?: string | undefined; geometry: { coordinates: [number, number] | [number, number, number] } }): string {
@@ -64,6 +87,24 @@ describe('demo snapshot import', () => {
     });
     expect(snapshot.features[0]?.properties.sourceRecordId).toEqual(expect.any(String));
   });
+
+  it('regenerates KDPA provenance when only the DBF component is tampered with', () => {
+    withCopiedKdpaSourceBundle((sourceDirectory, outputDirectory) => {
+      const original = generateKdpaSnapshot(sourceDirectory, outputDirectory);
+      const dbfPath = join(sourceDirectory, 'Protected_areas_OECM_Republic_of_Korea_ver_2025.dbf');
+      const dbf = readFileSync(dbfPath);
+      const originalName = Buffer.from('Baekdudaegan National Aboretum', 'ascii');
+      const offset = dbf.indexOf(originalName);
+      expect(offset).toBeGreaterThanOrEqual(0);
+      dbf[offset] = 'X'.charCodeAt(0);
+      writeFileSync(dbfPath, dbf);
+
+      const regenerated = generateKdpaSnapshot(sourceDirectory, outputDirectory);
+
+      expect(regenerated.source.sourceFileChecksum).not.toBe(original.source.sourceFileChecksum);
+      expect(regenerated.features[0]?.properties.name).toBe('Xaekdudaegan National Aboretum');
+    });
+  }, 30_000);
 
   it('keeps only valid Gyeongbuk fish and plant workbook rows in the bounded source snapshot', () => {
     const snapshot = rawSnapshot('ecosystem-disturbing-organisms-gyeongbuk-2016-2024.json');
@@ -200,7 +241,6 @@ describe('demo snapshot import', () => {
   });
 
   it('runs pnpm demo:data without source credentials and writes the public bundle', () => {
-    const workspaceRoot = fileURLToPath(new URL('../../../', import.meta.url));
     const outputPath = fileURLToPath(new URL('../../../data/normalized/public-bundle.json', import.meta.url));
     const { NODE_OPTIONS: _vitestWorkerNodeOptions, ...subprocessEnvironment } = process.env;
 
@@ -288,5 +328,19 @@ describe('demo snapshot import', () => {
       expect(bundle.officialOccurrences).toHaveLength(7564);
       expect(bundle.species).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: 'cyprinus-carpio' })]));
     });
+  });
+
+  it('keeps KDPA restricted areas out of hotspot and action-zone scoring', () => {
+    const bundle = importDemoSnapshots(demoDirectory);
+    const withoutRestrictedAreas = createActionZones(calculateHotspotCells({
+      now: '2026-08-22T00:00:00.000Z',
+      officialOccurrences: bundle.officialOccurrences,
+      habitatAreas: bundle.habitatAreas,
+      verifiedCommunitySignals: bundle.verifiedCommunitySignals,
+      verifiedEvents: bundle.verifiedEvents,
+    }));
+
+    expect(bundle.restrictedAreas).not.toHaveLength(0);
+    expect(bundle.actionZones).toEqual(withoutRestrictedAreas);
   });
 });
