@@ -10,7 +10,9 @@ For production imports, preserve the exact source dataset ID, source URL, provid
 
 ## Integrity and conversion
 
-The `source.checksum` value in each demo manifest is the SHA-256 digest of its `records` or `features` JSON payload (not the enclosing manifest, which contains the checksum). Recalculate it after changing a fixture. Production snapshots instead use the SHA-256 digest of the downloaded source file.
+The `source.checksum` value in each demo manifest is the SHA-256 digest of its `records` or `features` JSON payload (not the enclosing manifest, which contains the checksum). The importer serializes the parsed payload with JavaScript `JSON.stringify(payload)` in its source-array/property order before hashing; it rejects a snapshot if this exact digest does not match. Recalculate it after changing a fixture. Production snapshots instead use the SHA-256 digest of the downloaded source file.
+
+The importer accepts only a curated fish/plant mapping (the demo's bluegill and bur cucumber) and derives category from that mapping, never from a snapshot filename. An unknown species, including an accidentally appended bird or mammal row, is excluded from the public bundle.
 
 When a production source is delivered as SHP/DBF, convert it before importing; the demo importer deliberately consumes only pre-converted GeoJSON and does not require GIS software:
 

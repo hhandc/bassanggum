@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createProvenance } from './provenance.js';
@@ -46,11 +47,20 @@ export const GYEONGBUK_BOUNDARY: { type: 'Polygon'; coordinates: [BoundaryPositi
   ],
 };
 
-const KNOWN_SPECIES = new Map([
-  ['블루길', { id: 'lepomis-macrochirus', scientificName: 'Lepomis macrochirus', englishName: 'Bluegill' }],
-  ['lepomis macrochirus', { id: 'lepomis-macrochirus', scientificName: 'Lepomis macrochirus', englishName: 'Bluegill' }],
-  ['가시박', { id: 'sicyos-angulatus', scientificName: 'Sicyos angulatus', englishName: 'Bur cucumber' }],
-  ['sicyos angulatus', { id: 'sicyos-angulatus', scientificName: 'Sicyos angulatus', englishName: 'Bur cucumber' }],
+type SpeciesDetails = {
+  id: string;
+  category: Species['category'];
+  koreanName?: string;
+  scientificName?: string;
+  englishName?: string;
+};
+type KnownSpecies = Pick<SpeciesDetails, 'id' | 'category'> & { scientificName: string; englishName: string };
+
+const KNOWN_SPECIES = new Map<string, KnownSpecies>([
+  ['블루길', { id: 'lepomis-macrochirus', category: 'fish', scientificName: 'Lepomis macrochirus', englishName: 'Bluegill' }],
+  ['lepomis macrochirus', { id: 'lepomis-macrochirus', category: 'fish', scientificName: 'Lepomis macrochirus', englishName: 'Bluegill' }],
+  ['가시박', { id: 'sicyos-angulatus', category: 'plant', scientificName: 'Sicyos angulatus', englishName: 'Bur cucumber' }],
+  ['sicyos angulatus', { id: 'sicyos-angulatus', category: 'plant', scientificName: 'Sicyos angulatus', englishName: 'Bur cucumber' }],
 ]);
 
 function isRecord(value: unknown): value is JsonRecord {
@@ -66,7 +76,7 @@ function coordinate(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function speciesDetails(row: JsonRecord): { id: string; koreanName?: string; scientificName?: string; englishName?: string } | null {
+function speciesDetails(row: JsonRecord): SpeciesDetails | null {
   const koreanName = nonEmptyString(row.koreanName);
   const scientificName = nonEmptyString(row.scientificName);
   const known = (scientificName === null ? undefined : KNOWN_SPECIES.get(scientificName.toLowerCase())) ??
@@ -75,21 +85,14 @@ function speciesDetails(row: JsonRecord): { id: string; koreanName?: string; sci
   if (known !== undefined) {
     return {
       id: known.id,
+      category: known.category,
       ...(koreanName === null ? {} : { koreanName }),
       scientificName: known.scientificName,
       englishName: known.englishName,
     };
   }
 
-  if (scientificName === null) {
-    return null;
-  }
-
-  const id = scientificName
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
-  return id.length > 0 ? { id, ...(koreanName === null ? {} : { koreanName }), scientificName } : null;
+  return null;
 }
 
 function normalizeObservedAt(value: unknown): string | null | undefined {
@@ -235,7 +238,9 @@ function readSnapshot(path: string): { source: DatasetSource; records: unknown[]
   if (!isRecord(parsed) || !Array.isArray(parsed.records)) {
     throw new Error(`Snapshot at ${path} must contain a records array.`);
   }
-  return { source: DatasetSourceSchema.parse(parsed.source), records: parsed.records };
+  const source = DatasetSourceSchema.parse(parsed.source);
+  verifyPayloadChecksum(source, parsed.records, path);
+  return { source, records: parsed.records };
 }
 
 function readHabitatSnapshot(path: string): { source: DatasetSource; features: unknown[] } {
@@ -243,10 +248,19 @@ function readHabitatSnapshot(path: string): { source: DatasetSource; features: u
   if (!isRecord(parsed) || parsed.type !== 'FeatureCollection' || !Array.isArray(parsed.features)) {
     throw new Error(`Habitat snapshot at ${path} must be a GeoJSON FeatureCollection.`);
   }
-  return { source: DatasetSourceSchema.parse(parsed.source), features: parsed.features };
+  const source = DatasetSourceSchema.parse(parsed.source);
+  verifyPayloadChecksum(source, parsed.features, path);
+  return { source, features: parsed.features };
 }
 
-function speciesFromRow(row: unknown, category: Species['category']): Species | null {
+function verifyPayloadChecksum(source: DatasetSource, payload: unknown, path: string): void {
+  const actual = `sha256:${createHash('sha256').update(JSON.stringify(payload)).digest('hex')}`;
+  if (source.checksum !== actual) {
+    throw new Error(`Snapshot checksum mismatch for ${path}.`);
+  }
+}
+
+function speciesFromRow(row: unknown): Species | null {
   if (!isRecord(row)) {
     return null;
   }
@@ -255,7 +269,7 @@ function speciesFromRow(row: unknown, category: Species['category']): Species | 
     ? null
     : {
         id: details.id,
-        category,
+        category: details.category,
         ...(details.englishName === undefined ? {} : { englishName: details.englishName }),
         ...(details.koreanName === undefined ? {} : { koreanName: details.koreanName }),
         ...(details.scientificName === undefined ? {} : { scientificName: details.scientificName }),
@@ -273,18 +287,19 @@ export function importDemoSnapshots(inputDirectory: string): PublicDataBundle {
   };
 
   const occurrenceInputs = [
-    ...fish.records.map((row) => ({ row, source: fish.source, category: 'fish' as const })),
-    ...flora.records.map((row) => ({ row, source: flora.source, category: 'plant' as const })),
-  ];
-  const occurrences = occurrenceInputs
-    .map(({ row, source }) => normalizeOccurrenceRow(row, source, importRun))
-    .filter((record): record is OfficialOccurrence => record !== null);
+    ...fish.records.map((row) => ({ row, source: fish.source })),
+    ...flora.records.map((row) => ({ row, source: flora.source })),
+  ].flatMap((input) => {
+    const species = speciesFromRow(input.row);
+    return species === null ? [] : [{ ...input, species }];
+  });
   const species = new Map<string, Species>();
+  const occurrences: OfficialOccurrence[] = [];
   for (const input of occurrenceInputs) {
     const occurrence = normalizeOccurrenceRow(input.row, input.source, importRun);
-    const normalizedSpecies = speciesFromRow(input.row, input.category);
-    if (occurrence !== null && normalizedSpecies !== null) {
-      species.set(normalizedSpecies.id, normalizedSpecies);
+    if (occurrence !== null) {
+      occurrences.push(occurrence);
+      species.set(input.species.id, input.species);
     }
   }
   const habitatAreas = habitat.features
