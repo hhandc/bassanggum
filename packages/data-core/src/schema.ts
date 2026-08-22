@@ -193,6 +193,7 @@ export const VerifiedCommunitySignalSchema = z
     signalType: z.enum(['sighting', 'removal']),
     publicGeometry: PointSchema,
     verifiedAt: z.string().datetime({ offset: true }),
+    emergingDeviceDiversityVerified: z.boolean().optional(),
   })
   .strict();
 

@@ -62,7 +62,6 @@ const knownInput: HotspotInput = {
 
 function communitySignal(
   id: string,
-  deviceTokenHash: string,
   overrides: Partial<HotspotCommunitySignal> = {},
 ): HotspotCommunitySignal {
   return {
@@ -72,7 +71,6 @@ function communitySignal(
     signalType: 'sighting',
     publicGeometry: point,
     verifiedAt: '2026-08-20T00:00:00.000Z',
-    deviceTokenHash,
     ...overrides,
   };
 }
@@ -265,36 +263,36 @@ describe('calculateHotspotCells', () => {
     expect(withEvent).toBe(withoutEvent);
   });
 
-  it('labels three verified sightings from two device hashes in 30 days as emerging', () => {
+  it('labels three recent verified sightings with upstream diversity proof as emerging', () => {
     const cells = calculateHotspotCells(
       communityInput([
-        communitySignal('signal-a', 'device-a', { verifiedAt: '2026-08-01T00:00:00.000Z' }),
-        communitySignal('signal-b', 'device-a', { verifiedAt: '2026-08-10T00:00:00.000Z' }),
-        communitySignal('signal-c', 'device-b'),
+        communitySignal('signal-a', { verifiedAt: '2026-08-01T00:00:00.000Z', emergingDeviceDiversityVerified: true }),
+        communitySignal('signal-b', { verifiedAt: '2026-08-10T00:00:00.000Z', emergingDeviceDiversityVerified: true }),
+        communitySignal('signal-c', { emergingDeviceDiversityVerified: true }),
       ]),
     );
 
     expect(cells[0]).toMatchObject({ score: 12, status: 'emerging' });
   });
 
-  it('does not classify three sightings from one device hash as emerging', () => {
+  it('keeps three recent sightings a watch area without upstream diversity proof', () => {
     const cell = calculateHotspotCells(
       communityInput([
-        communitySignal('signal-a', 'device-a'),
-        communitySignal('signal-b', 'device-a'),
-        communitySignal('signal-c', 'device-a'),
+        communitySignal('signal-a'),
+        communitySignal('signal-b'),
+        communitySignal('signal-c'),
       ]),
     )[0];
 
     expect(cell).toMatchObject({ score: 12, status: 'watch' });
   });
 
-  it('does not count blank device hashes toward emerging qualification', () => {
+  it('does not synthesize device diversity proof from distinct public signal IDs', () => {
     const cell = calculateHotspotCells(
       communityInput([
-        communitySignal('signal-a', 'device-a'),
-        communitySignal('signal-b', ''),
-        communitySignal('signal-c', '   '),
+        communitySignal('signal-a'),
+        communitySignal('signal-b'),
+        communitySignal('signal-c'),
       ]),
     )[0];
 
@@ -304,9 +302,9 @@ describe('calculateHotspotCells', () => {
   it('includes a sighting verified exactly 30 days ago in emerging qualification', () => {
     const cell = calculateHotspotCells(
       communityInput([
-        communitySignal('signal-a', 'device-a', { verifiedAt: '2026-07-23T00:00:00.000Z' }),
-        communitySignal('signal-b', 'device-a'),
-        communitySignal('signal-c', 'device-b'),
+        communitySignal('signal-a', { verifiedAt: '2026-07-23T00:00:00.000Z', emergingDeviceDiversityVerified: true }),
+        communitySignal('signal-b', { emergingDeviceDiversityVerified: true }),
+        communitySignal('signal-c', { emergingDeviceDiversityVerified: true }),
       ]),
     )[0];
 
@@ -316,9 +314,9 @@ describe('calculateHotspotCells', () => {
   it('excludes expired and future sightings from emerging qualification', () => {
     const cell = calculateHotspotCells(
       communityInput([
-        communitySignal('signal-a', 'device-a', { verifiedAt: '2026-07-22T23:59:59.999Z' }),
-        communitySignal('signal-b', 'device-b', { verifiedAt: '2026-08-22T00:00:00.001Z' }),
-        communitySignal('signal-c', 'device-c'),
+        communitySignal('signal-a', { verifiedAt: '2026-07-22T23:59:59.999Z', emergingDeviceDiversityVerified: true }),
+        communitySignal('signal-b', { verifiedAt: '2026-08-22T00:00:00.001Z', emergingDeviceDiversityVerified: true }),
+        communitySignal('signal-c', { emergingDeviceDiversityVerified: true }),
       ]),
     )[0];
 
@@ -326,9 +324,9 @@ describe('calculateHotspotCells', () => {
   });
 
   it('weights a verified removal at 6 and a verified sighting at 4', () => {
-    const sighting = calculateHotspotCells(communityInput([communitySignal('sighting', 'device-a')]))[0];
+    const sighting = calculateHotspotCells(communityInput([communitySignal('sighting')]))[0];
     const removal = calculateHotspotCells(
-      communityInput([communitySignal('removal', 'device-a', { signalType: 'removal' })]),
+      communityInput([communitySignal('removal', { signalType: 'removal' })]),
     )[0];
 
     expect(sighting?.score).toBe(4);
@@ -338,9 +336,9 @@ describe('calculateHotspotCells', () => {
   it('does not let removal signals qualify an emerging hotspot', () => {
     const cell = calculateHotspotCells(
       communityInput([
-        communitySignal('removal-a', 'device-a', { signalType: 'removal' }),
-        communitySignal('removal-b', 'device-a', { signalType: 'removal' }),
-        communitySignal('removal-c', 'device-b', { signalType: 'removal' }),
+        communitySignal('removal-a', { signalType: 'removal', emergingDeviceDiversityVerified: true }),
+        communitySignal('removal-b', { signalType: 'removal', emergingDeviceDiversityVerified: true }),
+        communitySignal('removal-c', { signalType: 'removal', emergingDeviceDiversityVerified: true }),
       ]),
     )[0];
 
@@ -356,7 +354,7 @@ describe('calculateHotspotCells', () => {
   });
 
   it('uses resolution-8 H3 cells', () => {
-    const cell = calculateHotspotCells(communityInput([communitySignal('signal-a', 'device-a')]))[0];
+    const cell = calculateHotspotCells(communityInput([communitySignal('signal-a')]))[0];
 
     expect(getResolution(cell?.h3Index ?? '')).toBe(8);
   });
@@ -373,7 +371,7 @@ describe('calculateHotspotCells', () => {
 
     const cells = calculateHotspotCells({
       ...communityInput([
-        communitySignal('neighbor-signal', 'device-b', { publicGeometry: neighborPoint }),
+        communitySignal('neighbor-signal', { publicGeometry: neighborPoint }),
       ]),
       officialOccurrences: ['a', 'b', 'c'].map((id) => ({
         id: `official-${id}`,
@@ -388,16 +386,26 @@ describe('calculateHotspotCells', () => {
     expect(cells.find((cell) => cell.h3Index === weakCell)).toMatchObject({ score: 6, status: 'none' });
   });
 
-  it('omits internal device hashes from hotspot public output and public signal schema', () => {
+  it('accepts only the non-identifying diversity attestation in public community signals', () => {
     const cell = calculateHotspotCells(
       communityInput([
-        communitySignal('signal-a', 'device-token-hash-not-public'),
+        communitySignal('signal-a', { emergingDeviceDiversityVerified: true }),
       ]),
     )[0];
 
-    expect(JSON.stringify(cell)).not.toContain('device-token-hash-not-public');
     expect(cell).not.toHaveProperty('deviceTokenHash');
     expect(cell?.evidenceBreakdown.verifiedCommunitySignals[0]).not.toHaveProperty('deviceTokenHash');
+    expect(
+      VerifiedCommunitySignalSchema.safeParse({
+        id: 'signal-a',
+        speciesId: 'lepomis-macrochirus',
+        evidenceSource: 'community_verified',
+        signalType: 'sighting',
+        publicGeometry: point,
+        verifiedAt: '2026-08-20T00:00:00.000Z',
+        emergingDeviceDiversityVerified: true,
+      }).success,
+    ).toBe(true);
     expect(
       VerifiedCommunitySignalSchema.safeParse({
         id: 'signal-a',

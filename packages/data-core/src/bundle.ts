@@ -119,7 +119,7 @@ function createPayloads(bundle: PublicDataBundle): GeneratedPayload[] {
     now: HOTSPOT_REFERENCE_TIME,
     officialOccurrences: bundle.officialOccurrences,
     habitatAreas: bundle.habitatAreas,
-    verifiedCommunitySignals: bundle.verifiedCommunitySignals.map((signal) => ({ ...signal, deviceTokenHash: '' })),
+    verifiedCommunitySignals: bundle.verifiedCommunitySignals,
     verifiedEvents: bundle.verifiedEvents,
   });
   const sources = sourceCatalog(bundle);

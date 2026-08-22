@@ -25,7 +25,35 @@ function withTemporaryDirectory(test: (directory: string) => Promise<void>): Pro
   return test(directory).finally(() => rmSync(directory, { recursive: true, force: true }));
 }
 
+function readHotspots(directory: string): Array<{ properties: Record<string, unknown> }> {
+  return (JSON.parse(readFileSync(join(directory, 'hotspots.geojson'), 'utf8')) as {
+    features: Array<{ properties: Record<string, unknown> }>;
+  }).features;
+}
+
 describe('public bundle writer', () => {
+  it('publishes a community-only emerging hotspot from three recent sightings with upstream diversity proof', async () => {
+    await withTemporaryDirectory(async (directory) => {
+      const safeBundle = importDemoSnapshots(demoDirectory);
+      const verifiedCommunitySignals = ['one', 'two', 'three'].map((suffix, index) => ({
+        id: `community:${suffix}`,
+        speciesId: 'micropterus-salmoides',
+        evidenceSource: 'community_verified' as const,
+        signalType: 'sighting' as const,
+        publicGeometry: { type: 'Point' as const, coordinates: [128.6, 36.57] as [number, number] },
+        verifiedAt: `2026-08-${12 + index}T00:00:00.000Z`,
+        emergingDeviceDiversityVerified: true,
+      }));
+
+      await writePublicBundle({ ...safeBundle, verifiedCommunitySignals } as unknown as PublicDataBundle, directory);
+
+      expect(readHotspots(directory)).toEqual(expect.arrayContaining([
+        expect.objectContaining({ properties: expect.objectContaining({ status: 'emerging' }) }),
+      ]));
+      expect(readFileSync(join(directory, 'hotspots.geojson'), 'utf8')).not.toContain('deviceTokenHash');
+    });
+  }, 15_000);
+
   it('writes deterministic source-attributed public files for the complete no-key source scope', async () => {
     await withTemporaryDirectory(async (firstDirectory) => {
       await withTemporaryDirectory(async (secondDirectory) => {

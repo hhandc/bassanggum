@@ -37,10 +37,7 @@ export const HOTSPOT_WEIGHTS = {
 
 export type HotspotStatus = 'known' | 'watch' | 'emerging' | 'none';
 
-export type HotspotCommunitySignal = VerifiedCommunitySignal & {
-  /** An internal anonymized device identifier; it is never included in output. */
-  deviceTokenHash: string;
-};
+export type HotspotCommunitySignal = VerifiedCommunitySignal;
 
 export type HotspotInput = {
   now: string | Date;
@@ -84,7 +81,8 @@ type CellDraft = {
   h3Index: string;
   speciesId: string;
   contributions: Record<ContributionGroup, Map<string, HotspotContribution>>;
-  signalDeviceHashes: Map<string, Set<string>>;
+  recentSightingIds: Set<string>;
+  hasEmergingDeviceDiversityProof: boolean;
   hasOfficialEvidence: boolean;
 };
 
@@ -136,9 +134,8 @@ export function calculateHotspotCells(input: HotspotInput): HotspotCell[] {
     );
 
     if (isRecentSighting(signal, now)) {
-      const signalDeviceHashes = draft.signalDeviceHashes.get(signal.id) ?? new Set<string>();
-      signalDeviceHashes.add(signal.deviceTokenHash);
-      draft.signalDeviceHashes.set(signal.id, signalDeviceHashes);
+      draft.recentSightingIds.add(signal.id);
+      draft.hasEmergingDeviceDiversityProof ||= signal.emergingDeviceDiversityVerified === true;
     }
   }
 
@@ -251,7 +248,8 @@ function getDraft(drafts: Map<string, CellDraft>, speciesId: string, h3Index: st
       verifiedCommunitySignals: new Map(),
       adjacentCells: new Map(),
     },
-    signalDeviceHashes: new Map(),
+    recentSightingIds: new Set(),
+    hasEmergingDeviceDiversityProof: false,
     hasOfficialEvidence: false,
   };
   drafts.set(key, draft);
@@ -348,16 +346,14 @@ function statusFor(draft: CellDraft, score: number): HotspotStatus {
 }
 
 function isEmerging(draft: CellDraft): boolean {
-  const distinctSignals = [...draft.signalDeviceHashes.keys()];
-  const deviceHashes = new Set([...draft.signalDeviceHashes.values()].flatMap((hashes) => [...hashes]));
   return (
-    distinctSignals.length >= HOTSPOT_WEIGHTS.emerging.minimumSignals &&
-    deviceHashes.size >= HOTSPOT_WEIGHTS.emerging.minimumDeviceHashes
+    draft.recentSightingIds.size >= HOTSPOT_WEIGHTS.emerging.minimumSignals &&
+    draft.hasEmergingDeviceDiversityProof
   );
 }
 
 function isRecentSighting(signal: HotspotCommunitySignal, now: Date): boolean {
-  if (signal.signalType !== 'sighting' || signal.deviceTokenHash.trim() === '') {
+  if (signal.signalType !== 'sighting') {
     return false;
   }
 
