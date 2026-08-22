@@ -67,4 +67,42 @@ describe('MCP server', () => {
 
     await Promise.all([client.close(), server.close()]);
   });
+
+  it('delivers a pagination envelope to MCP clients', async () => {
+    const completeBundle = importDemoSnapshots(demoDirectory);
+    const server = createMcpServer({
+      ...completeBundle,
+      officialOccurrences: completeBundle.officialOccurrences.slice(0, 2),
+    });
+    const client = new Client({ name: 'bassanggum-mcp-pagination-client', version: '0.1.0' });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+
+    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+    const first = await client.callTool({ name: 'search_occurrences', arguments: { source: 'official', limit: 1 } });
+
+    expect(first.structuredContent).toMatchObject({
+      items: [expect.objectContaining({ id: expect.any(String) })],
+      nextCursor: expect.any(String),
+    });
+    const firstPage = first.structuredContent as { items: Array<{ id: string }>; nextCursor: string };
+    const second = await client.callTool({ name: 'search_occurrences', arguments: { source: 'official', limit: 1, cursor: firstPage.nextCursor } });
+
+    expect(second.structuredContent).toMatchObject({ items: [expect.objectContaining({ id: expect.any(String) })] });
+    expect((second.structuredContent as { items: Array<{ id: string }> }).items[0]!.id).not.toBe(firstPage.items[0]!.id);
+
+    await Promise.all([client.close(), server.close()]);
+  });
+
+  it('delivers source-attributed not-found results through MCP', async () => {
+    const server = createMcpServer(importDemoSnapshots(demoDirectory));
+    const client = new Client({ name: 'bassanggum-mcp-not-found-client', version: '0.1.0' });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+
+    await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+    const result = await client.callTool({ name: 'get_area_profile', arguments: { areaId: 'missing-area' } });
+
+    expect(result.structuredContent).toMatchObject({ found: false, evidenceType: 'official', provenance: [] });
+
+    await Promise.all([client.close(), server.close()]);
+  });
 });

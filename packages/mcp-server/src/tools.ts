@@ -76,25 +76,31 @@ type Provenance = {
   sourceFileChecksum?: string | undefined;
 };
 type EvidenceType = 'official' | 'community_verified' | 'mixed';
-export type Page<T> = T[] & { nextCursor?: string };
+export type QueryResult<T> = {
+  items: T[];
+  evidenceType: EvidenceType;
+  provenance: Provenance[];
+  nextCursor?: string | undefined;
+};
 type Bbox = z.infer<typeof BoundingBoxSchema>;
 type DateFilter = { dateFrom?: string | undefined; dateTo?: string | undefined };
 
-export function listSpecies(bundle: PublicDataBundle, rawInput: z.input<typeof ListSpeciesInput> = {}): Page<Record<string, unknown>> {
+export function listSpecies(bundle: PublicDataBundle, rawInput: z.input<typeof ListSpeciesInput> = {}): QueryResult<Record<string, unknown>> {
   const input = ListSpeciesInput.parse(rawInput);
   const provenance = bundleProvenance(bundle);
   const items = bundle.species
     .filter((species) => input.category === undefined || species.category === input.category)
     .sort((left, right) => left.id.localeCompare(right.id))
     .map((species) => ({ ...species, evidenceType: 'official' as const, provenance }));
-  return page(items, input);
+  return page(items, input, { evidenceType: 'official', provenance });
 }
 
-export function searchOccurrences(bundle: PublicDataBundle, rawInput: z.input<typeof SearchOccurrencesInput> = {}): Page<Record<string, unknown>> {
+export function searchOccurrences(bundle: PublicDataBundle, rawInput: z.input<typeof SearchOccurrencesInput> = {}): QueryResult<Record<string, unknown>> {
   const input = SearchOccurrencesInput.parse(rawInput);
-  const official = input.source === undefined || input.source === 'official'
-    ? bundle.officialOccurrences
-      .filter((record) => matchesSpecies(record, input.speciesId) && matchesPoint(record.geometry.coordinates, input.bbox) && matchesDate(record.observedAt, input))
+  const officialRecords = input.source === undefined || input.source === 'official'
+    ? bundle.officialOccurrences.filter((record) => matchesSpecies(record, input.speciesId) && matchesPoint(record.geometry.coordinates, input.bbox) && matchesDate(record.observedAt, input))
+    : [];
+  const official = officialRecords
       .map((record) => ({
         id: record.id,
         speciesId: record.speciesId,
@@ -103,8 +109,7 @@ export function searchOccurrences(bundle: PublicDataBundle, rawInput: z.input<ty
         geometry: record.geometry,
         evidenceType: 'official' as const,
         provenance: provenanceOf(record),
-      }))
-    : [];
+      }));
   const community = input.source === undefined || input.source === 'community_verified'
     ? bundle.verifiedCommunitySignals
       .filter((record) => matchesSpecies(record, input.speciesId) && matchesDate(record.verifiedAt, input))
@@ -117,10 +122,13 @@ export function searchOccurrences(bundle: PublicDataBundle, rawInput: z.input<ty
         provenance: [] as Provenance[],
       }))
     : [];
-  return page([...official, ...community].sort(byId), input);
+  return page([...official, ...community].sort(byId), input, {
+    evidenceType: input.source ?? (community.length > 0 ? 'mixed' : 'official'),
+    provenance: uniqueProvenance(officialRecords.map(provenanceOf)),
+  });
 }
 
-export function getHotspots(bundle: PublicDataBundle, rawInput: z.input<typeof GetHotspotsInput> = {}): Page<Record<string, unknown>> {
+export function getHotspots(bundle: PublicDataBundle, rawInput: z.input<typeof GetHotspotsInput> = {}): QueryResult<Record<string, unknown>> {
   const input = GetHotspotsInput.parse(rawInput);
   const records = sourceRecords(bundle);
   const items = bundle.actionZones
@@ -130,14 +138,17 @@ export function getHotspots(bundle: PublicDataBundle, rawInput: z.input<typeof G
     .map((zone) => hotspotResult(zone, records))
     .filter((zone) => input.minStatus === undefined || statusRank(zone.status) >= statusRank(input.minStatus))
     .sort((left, right) => Number(right.score) - Number(left.score) || String(left.id).localeCompare(String(right.id)));
-  return page(items, input);
+  return page(items, input, {
+    evidenceType: evidenceTypeFor(items),
+    provenance: uniqueProvenance(items.flatMap((item) => item.provenance)),
+  });
 }
 
-export function getAreaProfile(bundle: PublicDataBundle, rawInput: z.input<typeof GetAreaProfileInput>): Record<string, unknown> | undefined {
+export function getAreaProfile(bundle: PublicDataBundle, rawInput: z.input<typeof GetAreaProfileInput>): Record<string, unknown> {
   const { areaId } = GetAreaProfileInput.parse(rawInput);
   const zone = bundle.actionZones.find((candidate) => candidate.id === areaId);
   if (zone === undefined) {
-    return undefined;
+    return notFound('area', areaId);
   }
   const records = sourceRecords(bundle);
   const hotspot = hotspotResult(zone, records);
@@ -165,7 +176,7 @@ export function getAreaProfile(bundle: PublicDataBundle, rawInput: z.input<typeo
   };
 }
 
-export function findRemovalEvents(bundle: PublicDataBundle, rawInput: z.input<typeof FindRemovalEventsInput> = {}): Page<Record<string, unknown>> {
+export function findRemovalEvents(bundle: PublicDataBundle, rawInput: z.input<typeof FindRemovalEventsInput> = {}): QueryResult<Record<string, unknown>> {
   const input = FindRemovalEventsInput.parse(rawInput);
   const namedAreas = input.areaName === undefined
     ? []
@@ -176,14 +187,21 @@ export function findRemovalEvents(bundle: PublicDataBundle, rawInput: z.input<ty
     .filter((event) => input.areaName === undefined || event.title.toLocaleLowerCase().includes(input.areaName.toLocaleLowerCase()) || namedAreas.some((area) => geometryIntersectsGeometry(event.geometry, area.geometry)))
     .map(attributedEvent)
     .sort((left, right) => String(left.startsAt).localeCompare(String(right.startsAt)) || String(left.id).localeCompare(String(right.id)));
-  return page(items, input);
+  return page(items, input, {
+    evidenceType: 'official',
+    provenance: uniqueProvenance(bundle.verifiedEvents
+      .filter((event) => input.speciesId === undefined || event.eligibleSpeciesIds.includes(input.speciesId))
+      .filter((event) => eventMatchesDate(event, input))
+      .filter((event) => input.areaName === undefined || event.title.toLocaleLowerCase().includes(input.areaName.toLocaleLowerCase()) || namedAreas.some((area) => geometryIntersectsGeometry(event.geometry, area.geometry)))
+      .map(provenanceOf)),
+  });
 }
 
-export function getSpeciesGuidance(bundle: PublicDataBundle, rawInput: z.input<typeof GetSpeciesGuidanceInput>): Record<string, unknown> | undefined {
+export function getSpeciesGuidance(bundle: PublicDataBundle, rawInput: z.input<typeof GetSpeciesGuidanceInput>): Record<string, unknown> {
   const { speciesId } = GetSpeciesGuidanceInput.parse(rawInput);
   const species = bundle.species.find((candidate) => candidate.id === speciesId);
   if (species === undefined) {
-    return undefined;
+    return notFound('species', speciesId);
   }
   return {
     id: species.id,
@@ -201,13 +219,15 @@ export function getSpeciesGuidance(bundle: PublicDataBundle, rawInput: z.input<t
   };
 }
 
-export function getDataProvenance(bundle: PublicDataBundle, rawInput: z.input<typeof GetDataProvenanceInput> = {}): Page<Record<string, unknown>> {
+export function getDataProvenance(bundle: PublicDataBundle, rawInput: z.input<typeof GetDataProvenanceInput> = {}): QueryResult<Record<string, unknown>> {
   const input = GetDataProvenanceInput.parse(rawInput);
-  const items = uniqueProvenance(sourceRecords(bundle).map(provenanceOf))
+  const provenance = allDataProvenance(bundle)
     .filter((record) => input.datasetId === undefined || record.datasetId === input.datasetId)
+    .sort(byProvenanceIdentity);
+  const items = provenance
     .map((record) => ({ ...record, evidenceType: 'official' as const, provenance: record }))
-    .sort((left, right) => left.datasetId.localeCompare(right.datasetId));
-  return page(items, input);
+    .sort((left, right) => byProvenanceIdentity(left, right));
+  return page(items, input, { evidenceType: 'official', provenance });
 }
 
 function dateRangeIsOrdered(value: DateFilter, context: z.RefinementCtx): void {
@@ -216,13 +236,14 @@ function dateRangeIsOrdered(value: DateFilter, context: z.RefinementCtx): void {
   }
 }
 
-function page<T>(items: T[], input: { limit: number; cursor?: string | undefined }): Page<T> {
+function page<T>(items: T[], input: { limit: number; cursor?: string | undefined }, metadata: Pick<QueryResult<T>, 'evidenceType' | 'provenance'>): QueryResult<T> {
   const offset = decodeCursor(input.cursor);
-  const result = items.slice(offset, offset + input.limit) as Page<T>;
-  if (offset + input.limit < items.length) {
-    result.nextCursor = encodeCursor(offset + input.limit);
-  }
-  return result;
+  const nextCursor = offset + input.limit < items.length ? encodeCursor(offset + input.limit) : undefined;
+  return {
+    ...metadata,
+    items: items.slice(offset, offset + input.limit),
+    ...(nextCursor === undefined ? {} : { nextCursor }),
+  };
 }
 
 function encodeCursor(offset: number): string {
@@ -241,6 +262,10 @@ function sourceRecords(bundle: PublicDataBundle): Array<OfficialOccurrence | Pub
 }
 
 function bundleProvenance(bundle: PublicDataBundle): Provenance[] {
+  return allDataProvenance(bundle);
+}
+
+export function allDataProvenance(bundle: PublicDataBundle): Provenance[] {
   return uniqueProvenance(sourceRecords(bundle).map(provenanceOf));
 }
 
@@ -261,18 +286,20 @@ function provenanceOf(record: { datasetId: string; provider: string; sourceUrl: 
 }
 
 function uniqueProvenance(values: Array<Provenance | Provenance[] | undefined>): Provenance[] {
-  const byDataset = new Map<string, Provenance>();
+  const bySourceRecord = new Map<string, Provenance>();
   for (const value of values.flatMap((item) => item === undefined ? [] : Array.isArray(item) ? item : [item])) {
-    byDataset.set(value.datasetId, value);
+    bySourceRecord.set(provenanceIdentity(value), value);
   }
-  return [...byDataset.values()].sort((left, right) => left.datasetId.localeCompare(right.datasetId));
+  return [...bySourceRecord.values()].sort(byProvenanceIdentity);
 }
 
-function hotspotResult(zone: ActionZone, records: ReturnType<typeof sourceRecords>): Record<string, unknown> & { provenance: Provenance; status: z.infer<typeof StatusSchema> } {
+function hotspotResult(zone: ActionZone, records: ReturnType<typeof sourceRecords>): Record<string, unknown> & { provenance: Provenance[]; evidenceType: EvidenceType; status: z.infer<typeof StatusSchema> } {
   const recordById = new Map(records.map((record) => [record.id, record]));
-  const contributorIds = zone.evidence.cells.flatMap((cell) => [...cell.officialOccurrences, ...cell.habitatAreas].map((contribution) => contribution.id));
-  const record = contributorIds.map((id) => recordById.get(id)).find((candidate) => candidate !== undefined) ?? records[0];
-  if (record === undefined) throw new Error(`Hotspot ${zone.id} has no public source provenance.`);
+  const contributorIds = zone.evidence.cells.flatMap((cell) => cell.contributingIds);
+  const provenance = uniqueProvenance(contributorIds.flatMap((id) => {
+    const record = recordById.get(id);
+    return record === undefined ? [] : [provenanceOf(record)];
+  }));
   const evidenceType: EvidenceType = contributorIds.length > 0 ? 'official' : 'community_verified';
   return {
     id: zone.id,
@@ -285,8 +312,31 @@ function hotspotResult(zone: ActionZone, records: ReturnType<typeof sourceRecord
     evidence: zone.evidence,
     geometry: zone.geometry,
     evidenceType,
-    provenance: provenanceOf(record),
+    provenance,
   };
+}
+
+function notFound(kind: string, id: string): Record<string, unknown> {
+  return {
+    found: false,
+    message: `No public ${kind} was found for ${id}.`,
+    evidenceType: 'official' as const,
+    provenance: [],
+  };
+}
+
+function evidenceTypeFor(items: Array<{ evidenceType: EvidenceType }>): EvidenceType {
+  const types = new Set(items.map((item) => item.evidenceType));
+  if (types.size > 1) return 'mixed';
+  return types.values().next().value ?? 'official';
+}
+
+function provenanceIdentity(record: Provenance): string {
+  return [record.datasetId, record.importRunId ?? '', record.sourceRecordId ?? '', record.sourceUrl].join('\u0000');
+}
+
+function byProvenanceIdentity(left: Provenance, right: Provenance): number {
+  return provenanceIdentity(left).localeCompare(provenanceIdentity(right));
 }
 
 function attributedArea(area: Waterbody | RestrictedArea): Record<string, unknown> {

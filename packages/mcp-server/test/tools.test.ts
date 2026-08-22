@@ -16,7 +16,7 @@ const bundle = importDemoSnapshots(demoDirectory);
 
 describe('MCP data queries', () => {
   it('filters species by category with source-attributed results', () => {
-    const species = listSpecies(bundle, { category: 'fish' });
+    const species = listSpecies(bundle, { category: 'fish' }).items;
 
     expect(species).not.toHaveLength(0);
     expect(species.every((item) => item.category === 'fish')).toBe(true);
@@ -27,9 +27,9 @@ describe('MCP data queries', () => {
   });
 
   it('returns official-source provenance with a hotspot result', () => {
-    expect(getHotspots(bundle, { speciesId: 'lepomis-macrochirus' })[0]).toMatchObject({
+    expect(getHotspots(bundle, { speciesId: 'lepomis-macrochirus' }).items[0]).toMatchObject({
       evidenceType: 'official',
-      provenance: { datasetId: expect.any(String), sourceUrl: expect.any(String) },
+      provenance: expect.arrayContaining([expect.objectContaining({ datasetId: expect.any(String), sourceUrl: expect.any(String) })]),
     });
   });
 
@@ -54,9 +54,43 @@ describe('MCP data queries', () => {
   it('paginates occurrence results using an opaque next cursor', () => {
     const firstPage = searchOccurrences(bundle, { source: 'official', limit: 1 });
 
-    expect(firstPage).toHaveLength(1);
+    expect(firstPage.items).toHaveLength(1);
     expect(firstPage.nextCursor).toEqual(expect.any(String));
-    expect(searchOccurrences(bundle, { source: 'official', limit: 1, cursor: firstPage.nextCursor })).not.toEqual(firstPage);
+    expect(searchOccurrences(bundle, { source: 'official', limit: 1, cursor: firstPage.nextCursor }).items).not.toEqual(firstPage.items);
+  });
+
+  it('preserves every contributing official source record in a hotspot provenance chain', () => {
+    const zone = bundle.actionZones[0]!;
+    const first = bundle.officialOccurrences[0]!;
+    const second = { ...first, id: 'official:fixture:second', sourceRecordId: 'fixture-second' };
+    const result = getHotspots({
+      ...bundle,
+      officialOccurrences: [first, second],
+      actionZones: [{
+        ...zone,
+        evidence: {
+          cells: [{
+            ...zone.evidence.cells[0]!,
+            contributingIds: [first.id, second.id],
+            officialOccurrences: [{ id: first.id, weight: 1 }],
+            adjacentCells: [{ id: second.id, weight: 1 }],
+          }],
+        },
+      }],
+    }, {});
+
+    expect(result.items[0]?.provenance).toEqual(expect.arrayContaining([
+      expect.objectContaining({ sourceRecordId: first.sourceRecordId }),
+      expect.objectContaining({ sourceRecordId: 'fixture-second' }),
+    ]));
+  });
+
+  it('retains distinct records from the same dataset in data provenance', () => {
+    const first = bundle.officialOccurrences[0]!;
+    const second = { ...first, id: 'official:fixture:second', sourceRecordId: 'fixture-second' };
+    const result = getDataProvenance({ ...bundle, officialOccurrences: [first, second] }, { datasetId: first.datasetId });
+
+    expect(result.items.map((record) => record.sourceRecordId)).toEqual(expect.arrayContaining([first.sourceRecordId, 'fixture-second']));
   });
 
   it('provides area restrictions, score explanations, species, and matching events', () => {
@@ -108,7 +142,20 @@ describe('MCP data queries', () => {
       evidenceType: 'official',
       provenance: expect.any(Array),
     });
-    expect(getDataProvenance(bundle, {})).not.toHaveLength(0);
-    expect(findRemovalEvents(bundle, {})).toEqual(expect.any(Array));
+    expect(getDataProvenance(bundle, {}).items).not.toHaveLength(0);
+    expect(findRemovalEvents(bundle, {}).items).toEqual(expect.any(Array));
+  });
+
+  it('returns source-attributed not-found objects instead of undefined', () => {
+    expect(getAreaProfile(bundle, { areaId: 'missing-area' })).toMatchObject({
+      found: false,
+      evidenceType: 'official',
+      provenance: [],
+    });
+    expect(getSpeciesGuidance(bundle, { speciesId: 'missing-species' })).toMatchObject({
+      found: false,
+      evidenceType: 'official',
+      provenance: [],
+    });
   });
 });

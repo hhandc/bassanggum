@@ -56,10 +56,11 @@ function registerResource(server: McpServer, name: string, uri: string, value: R
   }));
 }
 
-function toMcpResult(value: unknown, label: string): { content: Array<{ type: 'text'; text: string }> } {
-  const count = Array.isArray(value) ? value.length : value === undefined ? 0 : 1;
+function toMcpResult(value: Record<string, unknown>, label: string): { content: Array<{ type: 'text'; text: string }>; structuredContent: Record<string, unknown> } {
+  const count = Array.isArray(value.items) ? value.items.length : value.found === false ? 0 : 1;
   return {
-    content: [{ type: 'text', text: `${count} ${label}${count === 1 ? '' : ' returned'}.\n\n${JSON.stringify(value, null, 2)}` }],
+    content: [{ type: 'text', text: `${count} ${label}${count === 1 ? '' : ' returned'}.` }],
+    structuredContent: value,
   };
 }
 

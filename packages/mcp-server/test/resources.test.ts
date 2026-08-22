@@ -28,4 +28,13 @@ describe('MCP resources', () => {
       expect(resource).toMatchObject({ evidenceType: expect.any(String), provenance: expect.any(Array) });
     }
   });
+
+  it('keeps distinct source records from one dataset in the dataset resource', () => {
+    const first = bundle.officialOccurrences[0]!;
+    const second = { ...first, id: 'official:fixture:second', sourceRecordId: 'fixture-second' };
+    const resources = createResources({ ...bundle, officialOccurrences: [first, second] });
+    const datasets = resources['bassanggum://catalog/datasets']!.datasets as Array<{ sourceRecordId: string }>;
+
+    expect(datasets.map((record) => record.sourceRecordId)).toEqual(expect.arrayContaining([first.sourceRecordId, 'fixture-second']));
+  });
 });

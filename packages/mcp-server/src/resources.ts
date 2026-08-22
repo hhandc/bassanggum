@@ -1,5 +1,5 @@
 import type { PublicDataBundle } from '@bassanggum/data-core';
-import { getDataProvenance, getHotspots, listSpecies, findRemovalEvents } from './tools.js';
+import { allDataProvenance, getHotspots, listSpecies, findRemovalEvents } from './tools.js';
 
 export const RESOURCE_URIS = {
   datasets: 'bassanggum://catalog/datasets',
@@ -10,11 +10,14 @@ export const RESOURCE_URIS = {
 
 /** Returns only generated public catalog, hotspot, and event data for fixed MCP resources. */
 export function createResources(bundle: PublicDataBundle): Record<string, Record<string, unknown>> {
-  const provenance = getDataProvenance(bundle, {});
+  const provenance = allDataProvenance(bundle);
+  const species = listSpecies(bundle, {});
+  const hotspots = getHotspots(bundle, {});
+  const events = findRemovalEvents(bundle, {});
   return {
     [RESOURCE_URIS.datasets]: { datasets: provenance, evidenceType: 'official', provenance },
-    [RESOURCE_URIS.species]: { species: listSpecies(bundle, {}), evidenceType: 'official', provenance },
-    [RESOURCE_URIS.hotspots]: { hotspots: getHotspots(bundle, {}), evidenceType: 'official', provenance },
-    [RESOURCE_URIS.verifiedEvents]: { events: findRemovalEvents(bundle, {}), evidenceType: 'official', provenance },
+    [RESOURCE_URIS.species]: { species: species.items, evidenceType: species.evidenceType, provenance: species.provenance, nextCursor: species.nextCursor },
+    [RESOURCE_URIS.hotspots]: { hotspots: hotspots.items, evidenceType: hotspots.evidenceType, provenance: hotspots.provenance, nextCursor: hotspots.nextCursor },
+    [RESOURCE_URIS.verifiedEvents]: { events: events.items, evidenceType: events.evidenceType, provenance: events.provenance, nextCursor: events.nextCursor },
   };
 }
