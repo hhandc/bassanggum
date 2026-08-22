@@ -140,6 +140,33 @@ describe('createActionZones', () => {
     expect(createActionZones(riverCells, [river])).toEqual(zones);
   });
 
+  it('splits a fixture that crosses the two-kilometre threshold', () => {
+    const riverCells = [
+      hotspotCell(latLngToCell(36.5715, 128.565, 8), 'lepomis-macrochirus', 11),
+      hotspotCell(latLngToCell(36.5715, 128.595, 8), 'lepomis-macrochirus', 7),
+    ];
+    const river = {
+      id: 'threshold-river',
+      name: 'Threshold River',
+      kind: 'river_segment' as const,
+      geometry: {
+        type: 'LineString' as const,
+        coordinates: [
+          [128.56, 36.5715] as [number, number],
+          [128.6, 36.5715] as [number, number],
+        ],
+      },
+    } satisfies SuppliedLandform;
+
+    const zones = createActionZones(riverCells, [river]);
+
+    expect(zones.map((zone) => ('name' in zone ? zone.name : undefined))).toEqual([
+      'Threshold River — Reach 01',
+      'Threshold River — Reach 02',
+    ]);
+    expect(zones.map((zone) => zone.sourceCellIds)).toEqual(riverCells.map((cell) => [cell.h3Index]));
+  });
+
   it('emits privacy-safe, serializable zones without precise points or device tokens', () => {
     const zone = createActionZones([hotspotCell(h3Index)])[0]!;
     const serialized = JSON.stringify(zone);

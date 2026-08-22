@@ -50,3 +50,15 @@ This is an environment/test-runner dependency-link failure, not an assertion fai
 - Confirmed `sourceRecordId`, `parentSourceRecordId`, `reachId`, source URL, licence, attribution, source bundle checksum, snapshot checksum, and import run handling are present.
 - Confirmed action-zone score traces equal the no-landform baseline.
 - No hotspot scoring logic was changed.
+
+## Fix round 1: direct reach-length regression coverage
+
+Reviewer finding: the prior snapshot test trusted the audit declaration of `maximumReachLengthMetres` and did not calculate geometry lengths.
+
+Added an independent Haversine implementation in the import test and assert that every committed and regenerated `LineString` reach has a total geodesic length of at most 2,000.01 m. Added an action-zone fixture that spans roughly 3.6 km and must produce `Reach 01` and `Reach 02`; it initially failed with a too-short 2.1 km fixture because the H3 cell boundary overlapped the first reach, not because splitting was wrong. The widened fixture proves the public action-zone behavior across the threshold.
+
+Fix verification:
+
+- `packages/data-core/test/action-zones.test.ts --no-file-parallelism` — 9/9 passed.
+- `packages/data-core/test/import-demo.test.ts --no-file-parallelism -t 'keeps only CP949'` — 1/1 passed.
+- `packages/data-core/test/import-demo.test.ts --no-file-parallelism -t 'regenerates the named river snapshot'` — 1/1 passed, including generated-reach lengths (24.62 s).

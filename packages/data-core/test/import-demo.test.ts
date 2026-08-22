@@ -100,6 +100,21 @@ function geometryPositions(coordinates: unknown): Array<[number, number]> {
   return coordinates.flatMap(geometryPositions);
 }
 
+function geodesicDistanceMetres([startLongitude, startLatitude]: [number, number], [endLongitude, endLatitude]: [number, number]): number {
+  const latitudeDelta = (endLatitude - startLatitude) * Math.PI / 180;
+  const longitudeDelta = (endLongitude - startLongitude) * Math.PI / 180;
+  const startLatitudeRadians = startLatitude * Math.PI / 180;
+  const endLatitudeRadians = endLatitude * Math.PI / 180;
+  const a = Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(startLatitudeRadians) * Math.cos(endLatitudeRadians) * Math.sin(longitudeDelta / 2) ** 2;
+  return 6_371_008.8 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function lineLengthMetres(coordinates: unknown): number {
+  const positions = geometryPositions(coordinates);
+  return positions.slice(1).reduce((total, position, index) => total + geodesicDistanceMetres(positions[index]!, position), 0);
+}
+
 describe('demo snapshot import', () => {
   it('keeps only named, Gyeongbuk-clipped EPSG:5179 lake polygons with source provenance', () => {
     const snapshot = rawFeatureSnapshot('national-base-map-lakes-gyeongbuk-2024.geojson');
@@ -140,6 +155,7 @@ describe('demo snapshot import', () => {
     expect(snapshot.features).not.toHaveLength(0);
     expect(snapshot.features.every((feature) => feature.geometry.type === 'LineString')).toBe(true);
     expect(snapshot.features.every((feature) => geometryPositions(feature.geometry.coordinates).every(isWithinGyeongbuk))).toBe(true);
+    expect(snapshot.features.every((feature) => lineLengthMetres(feature.geometry.coordinates) <= 2_000.01)).toBe(true);
     expect(snapshot.features.every((feature) => typeof feature.properties.name === 'string' && feature.properties.name.trim() !== '')).toBe(true);
     expect(snapshot.features.every((feature) =>
       typeof feature.properties.sourceRecordId === 'string' &&
@@ -166,6 +182,7 @@ describe('demo snapshot import', () => {
 
       expect(regenerated.source.sourceFileChecksum).toBe(committed.source.sourceFileChecksum);
       expect(regenerated.source.checksum).toBe(committed.source.checksum);
+      expect(regenerated.features.every((feature) => lineLengthMetres(feature.geometry.coordinates) <= 2_000.01)).toBe(true);
       expect(regenerated.features).toEqual(committed.features);
     } finally {
       rmSync(directory, { recursive: true, force: true });
