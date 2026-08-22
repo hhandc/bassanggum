@@ -1,0 +1,92 @@
+import {
+  OfficialOccurrenceSchema,
+  PublicDataBundleSchema,
+  SpeciesSchema,
+} from '@bassanggum/data-core';
+import { describe, expect, it } from 'vitest';
+
+const point = {
+  type: 'Point' as const,
+  coordinates: [128.6, 36.5] as [number, number],
+};
+
+const officialProvenance = {
+  datasetId: '15022461',
+  provider: 'National Institute of Ecology',
+  sourceUrl: 'https://www.data.go.kr/data/15022461',
+  licence: 'KOGL Type 1',
+  attribution: 'National Institute of Ecology',
+  importRunId: 'import-2026-08-22',
+  sourceRecordId: 'eco-42',
+};
+
+describe('normalized public-data schemas', () => {
+  it('accepts a source-attributed official occurrence', () => {
+    expect(
+      OfficialOccurrenceSchema.parse({
+        id: 'official:15022461:eco-42',
+        speciesId: 'bass',
+        evidenceSource: 'official',
+        geometry: point,
+        ...officialProvenance,
+      }),
+    ).toMatchObject({
+      datasetId: '15022461',
+      sourceRecordId: 'eco-42',
+    });
+  });
+
+  it('rejects an official occurrence without a source record ID', () => {
+    expect(() =>
+      OfficialOccurrenceSchema.parse({
+        id: 'official:15022461:eco-42',
+        speciesId: 'bass',
+        evidenceSource: 'official',
+        geometry: point,
+        ...officialProvenance,
+        sourceRecordId: undefined,
+      }),
+    ).toThrow();
+  });
+
+  it('limits species to fish and plant categories', () => {
+    expect(() => SpeciesSchema.parse({ id: 'rat', category: 'mammal' })).toThrow();
+  });
+
+  it('excludes media and private coordinates from public data bundles', () => {
+    expect(() =>
+      PublicDataBundleSchema.parse({
+        species: [],
+        officialOccurrences: [],
+        habitatAreas: [],
+        waterbodies: [],
+        restrictedAreas: [],
+        verifiedCommunitySignals: [
+          {
+            id: 'community:42',
+            speciesId: 'bass',
+            evidenceSource: 'community_verified',
+            publicGeometry: point,
+            privateGeometry: point,
+            mediaHashes: ['sha256:example'],
+          },
+        ],
+        verifiedEvents: [],
+      }),
+    ).toThrow();
+  });
+
+  it('accepts a bundle containing only public signal fields', () => {
+    expect(
+      PublicDataBundleSchema.parse({
+        species: [],
+        officialOccurrences: [],
+        habitatAreas: [],
+        waterbodies: [],
+        restrictedAreas: [],
+        verifiedCommunitySignals: [],
+        verifiedEvents: [],
+      }),
+    ).toMatchObject({ verifiedCommunitySignals: [] });
+  });
+});

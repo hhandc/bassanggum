@@ -17,5 +17,8 @@
   "scripts": {
     "test": "pnpm run build && pnpm --dir ../.. exec vitest --config vitest.workspace.ts run",
     "build": "tsc --project tsconfig.json"
+  },
+  "dependencies": {
+    "zod": "^3.25.76"
   }
 }
