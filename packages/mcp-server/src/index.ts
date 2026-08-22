@@ -65,5 +65,9 @@ function toMcpResult(value: Record<string, unknown>, label: string): { content: 
 }
 
 if (process.argv[1] !== undefined && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
-  await startMcpServer();
+  if (process.argv.includes('--help') || process.argv.includes('-h')) {
+    console.log('Usage: pnpm mcp\n\nStarts the Bassanggum read-only MCP server over stdio.');
+  } else {
+    await startMcpServer();
+  }
 }

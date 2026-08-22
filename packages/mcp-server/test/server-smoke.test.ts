@@ -29,7 +29,7 @@ describe('MCP server', () => {
     await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
     const tools = await client.listTools();
     const resources = await client.listResources();
-    const calls = [];
+    const calls: Array<Awaited<ReturnType<typeof client.callTool>>> = [];
     for (const [name, arguments_] of [
       ['list_species', {}],
       ['search_occurrences', {}],
@@ -59,6 +59,9 @@ describe('MCP server', () => {
     ]);
     for (const result of calls) {
       expect(result).not.toHaveProperty('isError', true);
+      if ('toolResult' in result) {
+        throw new Error('Expected each MCP tool call to return a direct result.');
+      }
       expect(result.content[0]).toMatchObject({ type: 'text', text: expect.any(String) });
     }
     for (const resource of resources.resources) {
