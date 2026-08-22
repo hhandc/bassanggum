@@ -12,7 +12,8 @@
     "lint": "pnpm typecheck",
     "typecheck": "pnpm build && tsc --noEmit --project tsconfig.base.json",
     "test": "pnpm build && vitest --config vitest.workspace.ts run",
-    "build": "pnpm --recursive --if-present run build"
+    "build": "pnpm --recursive --if-present run build",
+    "demo:data": "pnpm --filter @bassanggum/data-core run import:demo"
   },
   "devDependencies": {
     "@types/node": "^22.18.0",

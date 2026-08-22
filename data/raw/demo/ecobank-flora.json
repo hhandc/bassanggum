@@ -1,0 +1,22 @@
+{
+  "source": {
+    "datasetId": "ecobank-demo-flora-v1",
+    "title": "EcoBank-like flora occurrence demo snapshot",
+    "provider": "National Institute of Ecology EcoBank (reference only)",
+    "sourceUrl": "https://www.nie-ecobank.kr/",
+    "licence": "CC0-1.0 (repository-authored synthetic fixture)",
+    "attribution": "Bassanggum synthetic EcoBank-like fixture; EcoBank referenced (National Institute of Ecology)",
+    "snapshotFilename": "ecobank-flora.json",
+    "checksum": "sha256:a51a1b6ae229938de9ec3f1cd7c9bc4a8fb74de4d0b4fec809f6c5281e7b0f2f"
+  },
+  "records": [
+    {
+      "sourceRecordId": "demo-flora-001",
+      "koreanName": "가시박",
+      "scientificName": "Sicyos angulatus",
+      "longitude": 128.901,
+      "latitude": 36.082,
+      "observedAt": "2024-07-01"
+    }
+  ]
+}

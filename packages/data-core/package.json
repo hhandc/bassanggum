@@ -16,7 +16,8 @@
   },
   "scripts": {
     "test": "pnpm run build && pnpm --dir ../.. exec vitest --config vitest.workspace.ts run",
-    "build": "tsc --project tsconfig.json"
+    "build": "tsc --project tsconfig.json && tsc --target ES2024 --module NodeNext --moduleResolution NodeNext --rootDir scripts --strict --noUncheckedIndexedAccess --exactOptionalPropertyTypes --esModuleInterop --skipLibCheck --types node --outDir dist/scripts scripts/import-demo.ts",
+    "import:demo": "pnpm run build && node dist/scripts/import-demo.js"
   },
   "dependencies": {
     "zod": "^3.25.76"
