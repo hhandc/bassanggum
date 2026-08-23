@@ -7,6 +7,7 @@ export interface Classifier {
 export const fixtureClassifier: Classifier = {
   async classify(mediaToken) {
     if (mediaToken === 'fixture:target') return { speciesId: 'micropterus-salmoides', confidence: 0.95, matched: true };
+    if (mediaToken === 'fixture:threshold') return { speciesId: 'micropterus-salmoides', confidence: 0.7, matched: true };
     if (mediaToken === 'fixture:plant-target') return { speciesId: 'sicyos-angulatus', confidence: 0.95, matched: true };
     return { confidence: 0.4, matched: true };
   },
@@ -39,10 +40,8 @@ export function createOpenAiFishClassifier(apiKey: string, fetchImpl: Fetch = fe
 export function createPlantNetClassifier(apiKey: string, fetchImpl: Fetch = fetch): Classifier {
   return {
     async classify(imageUrl) {
-      const imageResponse = await fetchImpl(imageUrl, { method: 'GET' });
-      if (!imageResponse.ok) throw new Error(`Plant image download failed: ${imageResponse.status}.`);
       const form = new FormData();
-      form.append('images', await imageResponse.blob(), 'report.jpg');
+      form.append('images', await mediaBlob(imageUrl, fetchImpl), 'report.jpg');
       const response = await fetchImpl(`https://my-api.plantnet.org/v2/identify/all?api-key=${encodeURIComponent(apiKey)}&nb-results=1`, { method: 'POST', body: form });
       if (!response.ok) throw new Error(`Pl@ntNet classification failed: ${response.status}.`);
       const body = await response.json() as { results?: Array<{ score?: number; species?: { scientificNameWithoutAuthor?: string } }> };
@@ -50,4 +49,17 @@ export function createPlantNetClassifier(apiKey: string, fetchImpl: Fetch = fetc
       return { confidence: result?.score ?? 0, matched: result !== undefined, ...(result?.species?.scientificNameWithoutAuthor === undefined ? {} : { speciesId: result.species.scientificNameWithoutAuthor }) };
     },
   };
+}
+
+async function mediaBlob(media: string, fetchImpl: Fetch): Promise<Blob> {
+  const dataUrl = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(media);
+  if (dataUrl !== null) {
+    const contentType = dataUrl[1];
+    const encoded = dataUrl[2];
+    if (contentType === undefined || encoded === undefined) throw new Error('Invalid image data URL.');
+    return new Blob([Buffer.from(encoded, 'base64')], { type: contentType });
+  }
+  const imageResponse = await fetchImpl(media, { method: 'GET' });
+  if (!imageResponse.ok) throw new Error(`Plant image download failed: ${imageResponse.status}.`);
+  return imageResponse.blob();
 }

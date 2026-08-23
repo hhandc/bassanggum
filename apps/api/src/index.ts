@@ -1,4 +1,9 @@
+import { fileURLToPath } from 'node:url';
+
+import { loadApiEnvironment } from './env.js';
 import { buildServer } from './server.js';
+
+loadApiEnvironment(fileURLToPath(new URL('../.env', import.meta.url)));
 
 const app = buildServer();
 

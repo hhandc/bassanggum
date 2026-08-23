@@ -76,8 +76,9 @@ describe('GET /map/layers', () => {
     expect(body.actionZones.features.every((feature: { geometry: { type: string; coordinates: unknown }; properties: { kind: string } }) =>
       feature.geometry.type === 'Polygon' &&
       everyRingHasAtMost(feature.geometry.coordinates, 33) &&
-      ['fish_activity', 'plant_activity', 'mixed_activity'].includes(feature.properties.kind),
+      ['fish_activity', 'plant_activity'].includes(feature.properties.kind),
     )).toBe(true);
+    expect(body.actionZones.features.some((feature: { properties: { kind: string } }) => feature.properties.kind === 'mixed_activity')).toBe(false);
     await app.close();
   });
 

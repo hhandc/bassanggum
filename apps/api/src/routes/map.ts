@@ -24,6 +24,7 @@ type ActivityCircle = {
   sourceZoneIds: string[];
   speciesScores: Map<string, number>;
 };
+type ActivitySummary = Omit<ActivityCircle, 'category'> & { categories: Set<ActivityCategory> };
 
 export function registerMapRoutes(app: FastifyInstance, bundle: PublicDataBundle): void {
   app.get('/map/layers', (request, reply) => {
@@ -37,7 +38,7 @@ export function registerMapRoutes(app: FastifyInstance, bundle: PublicDataBundle
     const viewportBounds = parsedViewportBounds;
     const allowedSpecies = new Set(bundle.species.filter((species) => query.category === undefined || species.category === query.category).map((species) => species.id));
     const matchingZones = bundle.actionZones
-      .filter((zone) => zone.evidence.cells.some((cell) => cell.status !== 'none'))
+      .filter((zone) => hasMapEvidence(zone.evidence.cells))
       .filter((zone) => query.speciesId === undefined || zone.speciesId === query.speciesId)
       .filter((zone) => query.category === undefined || allowedSpecies.has(zone.speciesId))
       .filter((zone) => query.evidence === undefined || hasEvidence(zone.evidence.cells, query.evidence));
@@ -60,7 +61,7 @@ export function registerMapRoutes(app: FastifyInstance, bundle: PublicDataBundle
 function actionZoneFeatures(zones: PublicDataBundle['actionZones'], bundle: PublicDataBundle) {
   return mergeNearbyActivities(activityCircles(zones, bundle)).map((activity) => {
     const speciesScores = [...activity.speciesScores.entries()];
-    const kind = activity.categories.size === 2 ? 'mixed_activity' : `${activity.categories.values().next().value}_activity`;
+    const kind = `${activity.categories.values().next().value}_activity`;
     return {
       type: 'Feature' as const,
       geometry: circleGeometry(activity.center, activity.radiusMetres),
@@ -96,7 +97,7 @@ function circleForZone(category: ActivityCategory, zone: PublicDataBundle['actio
     category,
     center,
     cells: zone.evidence.cells,
-    radiusMetres: Math.min(7_000, Math.max(650, extentRadius + 450, 320 * Math.sqrt(zone.evidence.cells.length) + 35 * Math.sqrt(zone.score))),
+    radiusMetres: Math.min(2_200, Math.max(300, extentRadius + 150, 180 * Math.sqrt(zone.evidence.cells.length) + 15 * Math.sqrt(zone.score))),
     sourceZoneIds: [zone.id],
     speciesScores: new Map([[zone.speciesId, zone.score]]),
   };
@@ -115,8 +116,8 @@ function mergeNearbyActivities(circles: readonly ActivityCircle[]) {
     for (let right = left + 1; right < circles.length; right += 1) {
       const leftCircle = circles[left];
       const rightCircle = circles[right];
-      if (leftCircle === undefined || rightCircle === undefined || leftCircle.category === rightCircle.category) continue;
-      if (distanceMetres(leftCircle.center, rightCircle.center) <= leftCircle.radiusMetres + rightCircle.radiusMetres + 800) parent[root(right)] = root(left);
+      if (leftCircle === undefined || rightCircle === undefined || leftCircle.category !== rightCircle.category) continue;
+      if (distanceMetres(leftCircle.center, rightCircle.center) <= leftCircle.radiusMetres + rightCircle.radiusMetres + 250) parent[root(right)] = root(left);
     }
   }
   const groups = new Map<number, ActivityCircle[]>();
@@ -128,7 +129,7 @@ function mergeNearbyActivities(circles: readonly ActivityCircle[]) {
   return [...groups.values()].map(mergeActivityGroup);
 }
 
-function mergeActivityGroup(circles: readonly ActivityCircle[]) {
+function mergeActivityGroup(circles: readonly ActivityCircle[]): ActivitySummary {
   const totalScore = circles.reduce((total, circle) => total + [...circle.speciesScores.values()].reduce((sum, score) => sum + score, 0), 0);
   const center: Position = [
     circles.reduce((total, circle) => total + circle.center[0] * circleScore(circle), 0) / totalScore,
@@ -142,7 +143,7 @@ function mergeActivityGroup(circles: readonly ActivityCircle[]) {
     categories: new Set(circles.map((circle) => circle.category)),
     center,
     cells: circles.flatMap((circle) => circle.cells),
-    radiusMetres: Math.min(9_000, Math.max(...circles.map((circle) => distanceMetres(center, circle.center) + circle.radiusMetres))),
+    radiusMetres: Math.min(2_500, Math.max(...circles.map((circle) => distanceMetres(center, circle.center) + circle.radiusMetres))),
     sourceZoneIds: circles.flatMap((circle) => circle.sourceZoneIds),
     speciesScores,
   };
@@ -269,4 +270,8 @@ function hasEvidence(
     adjacent: 'adjacentCells',
   } as const;
   return cells.some((cell) => cell[contributionKey[evidence]].length > 0);
+}
+
+function hasMapEvidence(cells: readonly ActivityCell[]): boolean {
+  return cells.some((cell) => cell.status !== 'none' || cell.officialOccurrences.length > 0 || cell.verifiedCommunitySignals.length > 0);
 }

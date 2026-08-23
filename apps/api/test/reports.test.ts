@@ -3,6 +3,14 @@ import { describe, expect, it } from 'vitest';
 import { buildServer } from '../src/server.js';
 
 describe('POST /reports', () => {
+  it('identifies a fish from a category and local-image media payload', async () => {
+    const app = buildServer();
+    const response = await app.inject({ method: 'POST', url: '/reports', payload: { category: 'fish', type: 'sighting', deviceToken: 'device-a', location: [128.6, 36.57], mediaDataUrl: 'fixture:target' } });
+
+    expect(response.json()).toMatchObject({ status: 'auto_verified', identification: { speciesId: 'micropterus-salmoides', confidence: 0.95 } });
+    await app.close();
+  });
+
   it('auto-verifies a fixture fish removal', async () => {
     const app = buildServer();
     const response = await app.inject({ method: 'POST', url: '/reports', payload: { type: 'removal', speciesId: 'micropterus-salmoides', deviceToken: 'device-a', location: [128.6, 36.57], mediaToken: 'fixture:target' } });
@@ -14,6 +22,17 @@ describe('POST /reports', () => {
     const app = buildServer();
     const response = await app.inject({ method: 'POST', url: '/reports', payload: { type: 'sighting', speciesId: 'micropterus-salmoides', deviceToken: 'device-a', location: [128.6, 36.57], mediaToken: 'fixture:low-confidence' } });
     expect(response.json()).toMatchObject({ status: 'needs_review', pointsAwarded: 0 });
+    await app.close();
+  });
+
+  it('auto-verifies a 70% fish identification and returns scientific and common names', async () => {
+    const app = buildServer();
+    const response = await app.inject({ method: 'POST', url: '/reports', payload: { category: 'fish', type: 'sighting', deviceToken: 'device-a', location: [128.6, 36.57], mediaDataUrl: 'fixture:threshold' } });
+
+    expect(response.json()).toMatchObject({
+      status: 'auto_verified',
+      identification: { confidence: 0.7, scientificName: 'Micropterus salmoides', commonName: 'Largemouth bass' },
+    });
     await app.close();
   });
 

@@ -11,13 +11,15 @@ export type SelectedArea = {
 type AreaSheetProps = {
   area: SelectedArea;
   locale: 'en' | 'ko';
+  onClose: () => void;
   onJoin: () => void;
 };
 
-export function AreaSheet({ area, locale, onJoin }: AreaSheetProps) {
+export function AreaSheet({ area, locale, onClose, onJoin }: AreaSheetProps) {
   const isKorean = locale === 'ko';
   return (
-    <section aria-label={isKorean ? '선택한 구역' : 'Selected area'} style={{ background: 'white', borderRadius: '22px 22px 0 0', bottom: 0, boxShadow: '0 -8px 30px #0003', left: 0, padding: '20px 20px 28px', position: 'absolute', right: 0, zIndex: 1000 }}>
+    <section aria-label={isKorean ? '선택한 구역' : 'Selected area'} style={{ background: 'white', borderRadius: '22px 22px 0 0', bottom: 64, boxShadow: '0 -8px 30px #0003', left: 0, padding: '20px 20px 28px', position: 'absolute', right: 0, zIndex: 1000 }}>
+      <button aria-label={isKorean ? '구역 상세 닫기' : 'Close area details'} onClick={onClose} style={{ background: 'transparent', border: 0, color: '#5c6878', float: 'right', fontSize: 22, lineHeight: 1 }} type="button">×</button>
       <p style={{ color: '#5c6878', fontSize: 13, margin: 0 }}>{area.kind}</p>
       <h2 style={{ fontSize: 22, margin: '4px 0 12px' }}>{area.name}</h2>
       {area.restricted ? (

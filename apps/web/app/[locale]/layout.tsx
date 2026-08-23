@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 
 import { isLocale } from '../../lib/i18n';
+import { BottomNavigation } from '../../components/navigation/BottomNavigation';
 import enMessages from '../../messages/en.json';
 import koMessages from '../../messages/ko.json';
 
@@ -25,7 +26,7 @@ export default async function LocaleLayout({ children, params }: LocaleLayoutPro
 
   return (
     <NextIntlClientProvider locale={locale} messages={messages[locale]}>
-      {children}
+      {children}<BottomNavigation locale={locale} />
     </NextIntlClientProvider>
   );
 }

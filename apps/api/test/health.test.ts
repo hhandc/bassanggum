@@ -19,4 +19,5 @@ describe('GET /health', () => {
     expect(response.headers['access-control-allow-origin']).toBe('http://localhost:3000');
     await app.close();
   });
+
 });

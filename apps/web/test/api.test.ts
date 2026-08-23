@@ -21,4 +21,13 @@ describe('fetchMapLayers', () => {
 
     expect(fetchSpy).toHaveBeenCalledWith('http://localhost:3001/map/layers?bbox=128%2C36%2C129%2C37&zoom=9');
   });
+
+  it('adds the requested category filter to the map request', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue({ json: async () => ({}), ok: true });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    await fetchMapLayers({ bbox: [128, 36, 129, 37], zoom: 9 }, 'fish');
+
+    expect(fetchSpy).toHaveBeenCalledWith('http://localhost:3001/map/layers?bbox=128%2C36%2C129%2C37&zoom=9&category=fish');
+  });
 });
