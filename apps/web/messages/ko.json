@@ -7,7 +7,9 @@
     "map": "지도",
     "report": "제보",
     "events": "행사",
-    "impact": "영향"
+    "impact": "영향",
+    "myPage": "내 정보",
+    "primary": "주요 내비게이션"
   },
   "evidence": {
     "official": "공식 근거",

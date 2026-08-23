@@ -6,6 +6,7 @@ export type SelectedArea = {
   name: string;
   restricted: boolean;
   topSpecies: Array<{ id: string; imageUrl?: string; name: string }>;
+  joined: boolean;
 };
 
 type AreaSheetProps = {
@@ -35,8 +36,8 @@ export function AreaSheet({ area, locale, onJoin }: AreaSheetProps) {
               </li>)}
             </ul>
           ) : <p style={{ fontSize: 15, fontWeight: 600, margin: '0 0 16px' }}>{isKorean ? '공식 종 정보 확인 중' : 'Species information pending'}</p>}
-          <button onClick={onJoin} style={{ background: '#0f5f46', border: 0, borderRadius: 12, color: 'white', fontSize: 16, fontWeight: 700, padding: '12px 16px', width: '100%' }} type="button">
-            {isKorean ? '보상 구역 참가' : 'Join bounty'}
+          <button disabled={area.joined} onClick={onJoin} style={{ background: area.joined ? '#94a3b8' : '#0f5f46', border: 0, borderRadius: 12, color: 'white', fontSize: 16, fontWeight: 700, padding: '12px 16px', width: '100%' }} type="button">
+            {area.joined ? (isKorean ? '참여 완료' : 'Joined') : (isKorean ? '보상 구역 참가' : 'Join bounty')}
           </button>
         </>
       )}

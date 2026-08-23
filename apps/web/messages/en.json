@@ -7,7 +7,9 @@
     "map": "Map",
     "report": "Report",
     "events": "Events",
-    "impact": "Impact"
+    "impact": "Impact",
+    "myPage": "My Page",
+    "primary": "Primary navigation"
   },
   "evidence": {
     "official": "Official evidence",
